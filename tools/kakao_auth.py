@@ -1,19 +1,60 @@
 import os
 import re
 import json
+import base64
 import urllib.parse
 import urllib.request
 from dotenv import load_dotenv
 
 ENV_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+IN_GITHUB_ACTIONS = os.environ.get("GITHUB_ACTIONS") == "true"
 
 
 def _write_env_value(key, value):
+    if IN_GITHUB_ACTIONS:
+        _update_github_secret(key, value)
+        return
     with open(ENV_PATH, "r", encoding="utf-8") as f:
         content = f.read()
     content = re.sub(rf"^({re.escape(key)}=).*$", rf"\g<1>{value}", content, flags=re.MULTILINE)
     with open(ENV_PATH, "w", encoding="utf-8") as f:
         f.write(content)
+
+
+def _update_github_secret(key, value):
+    pat = os.environ.get("GH_PAT")
+    repo = os.environ.get("GH_REPO")
+    if not pat or not repo:
+        return
+
+    # 공개키 조회
+    req = urllib.request.Request(
+        f"https://api.github.com/repos/{repo}/actions/secrets/public-key",
+        headers={"Authorization": f"Bearer {pat}", "Accept": "application/vnd.github+json"},
+    )
+    with urllib.request.urlopen(req) as res:
+        pub_key_data = json.loads(res.read())
+
+    # 값 암호화 (PyNaCl)
+    from nacl import encoding, public as nacl_public
+    public_key = nacl_public.PublicKey(pub_key_data["key"].encode(), encoding.Base64Encoder())
+    sealed_box = nacl_public.SealedBox(public_key)
+    encrypted = base64.b64encode(sealed_box.encrypt(value.encode())).decode()
+
+    # 시크릿 업데이트
+    body = json.dumps({"encrypted_value": encrypted, "key_id": pub_key_data["key_id"]}).encode()
+    req = urllib.request.Request(
+        f"https://api.github.com/repos/{repo}/actions/secrets/{key}",
+        data=body,
+        method="PUT",
+        headers={
+            "Authorization": f"Bearer {pat}",
+            "Accept": "application/vnd.github+json",
+            "Content-Type": "application/json",
+        },
+    )
+    with urllib.request.urlopen(req) as res:
+        pass
 
 
 def refresh_access_token():
