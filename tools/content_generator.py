@@ -164,18 +164,18 @@ def generate_daily_messages():
 
     client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-    # 첫 번째 메시지: 날씨 + 정바로
-    prompt1 = f"""오늘은 {date_str}이야.
+    # 1번 메시지: 날씨만
+    msg_weather = (
+        f"🌤️ {date_str} 날씨 / 해양 정보\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"{weather_block}"
+    )
+
+    # 2번 메시지: 정바로
+    prompt_baro = f"""오늘은 {date_str}이야.
 첫째: 정바로 (남아, 생후 {ages['baro_months']}개월 {ages['baro_days']}일)
 
 아래 형식을 정확히 따라줘. 각 항목 3~4줄로 자세하게 써줘:
-
-☀️ {date_str} 오늘의 육아 정보 (1/2)
-
-🌤️ 날씨 / 해양 정보
-━━━━━━━━━━━━━━━
-{weather_block}
-• [날씨에 맞는 외출 팁이나 옷차림 조언 — 1~2줄]
 
 👶 정바로 ({ages['baro_months']}개월 {ages['baro_days']}일)
 ━━━━━━━━━━━━━━━
@@ -194,15 +194,13 @@ def generate_daily_messages():
 
 주의사항: 의학적으로 정확한 정보만. 이모지 유지. 본문만 출력."""
 
-    # 두 번째 메시지: 왕눈이
-    prompt2 = f"""오늘은 {date_str}이야.
+    # 3번 메시지: 왕눈이
+    prompt_wangnuni = f"""오늘은 {date_str}이야.
 둘째: 왕눈이 (임신 {ages['preg_weeks']}주 {ages['preg_day']}일, 출산예정일 2027년 1월 10일, D-{ages['days_left']}일)
 
 아래 형식을 정확히 따라줘. 각 항목 3~4줄로 자세하게 써줘:
 
-🤰 오늘의 육아 정보 (2/2)
-
-왕눈이 ({ages['preg_weeks']}주 {ages['preg_day']}일, D-{ages['days_left']})
+🤰 왕눈이 ({ages['preg_weeks']}주 {ages['preg_day']}일, D-{ages['days_left']})
 ━━━━━━━━━━━━━━━
 👶 이번 주 태아 발달
 • [현재 주차 태아의 크기/발달 상황 — 3~4줄, 구체적으로]
@@ -222,16 +220,16 @@ def generate_daily_messages():
 
 주의사항: 의학적으로 정확한 정보만. 이모지 유지. 본문만 출력."""
 
-    msg1 = client.messages.create(
+    msg_baro = client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=1500,
-        messages=[{"role": "user", "content": prompt1}],
+        messages=[{"role": "user", "content": prompt_baro}],
     ).content[0].text
 
-    msg2 = client.messages.create(
+    msg_wangnuni = client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=1500,
-        messages=[{"role": "user", "content": prompt2}],
+        messages=[{"role": "user", "content": prompt_wangnuni}],
     ).content[0].text
 
-    return msg1, msg2
+    return msg_weather, msg_baro, msg_wangnuni
