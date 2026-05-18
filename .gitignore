@@ -1,0 +1,16 @@
+# Secrets
+.env
+credentials.json
+token.json
+
+# Temp workspace
+.tmp/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db
