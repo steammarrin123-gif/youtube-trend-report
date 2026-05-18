@@ -10,12 +10,16 @@ load_dotenv()
 BARO_BIRTHDAY = date(2024, 12, 24)
 SECOND_DUE_DATE = date(2027, 1, 10)
 
+KHOA_OBS_CODES = {
+    "광양": "DT_0056",
+    "여수": "DT_0059",
+}
+
 
 def _calculate_ages(today=None):
     if today is None:
         today = date.today()
 
-    # 정바로 나이 (개월 + 일)
     months = (today.year - BARO_BIRTHDAY.year) * 12 + (today.month - BARO_BIRTHDAY.month)
     if today.day < BARO_BIRTHDAY.day:
         months -= 1
@@ -25,7 +29,6 @@ def _calculate_ages(today=None):
         prev_year = today.year if today.month > 1 else today.year - 1
         days = (today - BARO_BIRTHDAY.replace(year=prev_year, month=prev_month)).days
 
-    # 임신 주차 (예정일 기준 역산 — 임신기간 280일)
     lmp = SECOND_DUE_DATE - timedelta(days=280)
     preg_days = (today - lmp).days
     preg_weeks = preg_days // 7
@@ -41,40 +44,128 @@ def _calculate_ages(today=None):
     }
 
 
-def _get_weather():
+def _fetch_wttr(city_en):
     try:
-        url = "https://wttr.in/Seoul?format=j1"
+        url = f"https://wttr.in/{city_en}?format=j1"
         req = urllib.request.Request(url, headers={"User-Agent": "curl/7.0"})
         with urllib.request.urlopen(req, timeout=5) as res:
+            return json.loads(res.read())
+    except Exception:
+        return None
+
+
+def _get_weather_suncheon():
+    data = _fetch_wttr("Suncheon")
+    if not data:
+        return "날씨 정보를 가져올 수 없습니다."
+
+    current = data["current_condition"][0]
+    temp = current["temp_C"]
+    feels_like = current["FeelsLikeC"]
+    humidity = current["humidity"]
+    desc_list = current.get("lang_ko", [])
+    desc = desc_list[0]["value"] if desc_list else current["weatherDesc"][0]["value"]
+
+    today_w = data["weather"][0]
+    max_temp = today_w["maxtempC"]
+    min_temp = today_w["mintempC"]
+
+    return (
+        f"현재 {temp}°C (체감 {feels_like}°C), 습도 {humidity}%\n"
+        f"최고 {max_temp}°C / 최저 {min_temp}°C, {desc}"
+    )
+
+
+def _get_marine_info(city_en):
+    data = _fetch_wttr(city_en)
+    if not data:
+        return None
+
+    current = data["current_condition"][0]
+    wind_kmph = int(current.get("windspeedKmph", 0))
+    wind_ms = round(wind_kmph / 3.6, 1)
+    precip = float(current.get("precipMM", 0))
+    rain = "있음" if precip > 0 else "없음"
+
+    wave_height = "정보없음"
+    for hour in data["weather"][0].get("hourly", []):
+        sig = hour.get("sigHeight_m")
+        if sig:
+            wave_height = f"{sig}m"
+            break
+
+    return {"rain": rain, "wind_ms": wind_ms, "wave": wave_height}
+
+
+def _get_tide_info(city_kr):
+    khoa_key = os.getenv("KHOA_API_KEY")
+    if not khoa_key:
+        return None
+
+    obs_code = KHOA_OBS_CODES.get(city_kr)
+    if not obs_code:
+        return None
+
+    today = date.today().strftime("%Y%m%d")
+    url = (
+        f"http://www.khoa.go.kr/api/oceangrid/tidalBul/search.do"
+        f"?ServiceKey={khoa_key}&ObsCode={obs_code}&Date={today}&ResultType=json"
+    )
+
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "curl/7.0"})
+        with urllib.request.urlopen(req, timeout=10) as res:
             data = json.loads(res.read())
 
-        current = data["current_condition"][0]
-        temp = current["temp_C"]
-        feels_like = current["FeelsLikeC"]
-        humidity = current["humidity"]
-        desc = current["lang_ko"][0]["value"] if current.get("lang_ko") else current["weatherDesc"][0]["value"]
+        items = data.get("result", {}).get("data", [])
+        highs = [f"{x['tph_time']}({x['tph_level']}cm)" for x in items if x.get("hl_code") == "H"]
+        lows = [f"{x['tph_time']}({x['tph_level']}cm)" for x in items if x.get("hl_code") == "L"]
 
-        today_weather = data["weather"][0]
-        max_temp = today_weather["maxtempC"]
-        min_temp = today_weather["mintempC"]
-
-        return (
-            f"현재 {temp}°C (체감 {feels_like}°C), 습도 {humidity}%\n"
-            f"오늘 최고 {max_temp}°C / 최저 {min_temp}°C, {desc}"
-        )
+        return {
+            "고조": " / ".join(highs) if highs else "정보없음",
+            "저조": " / ".join(lows) if lows else "정보없음",
+        }
     except Exception:
-        return "날씨 정보를 가져올 수 없습니다."
+        return None
+
+
+def _format_marine_section(city_kr, city_en):
+    marine = _get_marine_info(city_en)
+    tide = _get_tide_info(city_kr)
+
+    lines = [f"⚓ {city_kr}"]
+    if marine:
+        lines.append(f"비: {marine['rain']} | 바람: {marine['wind_ms']}m/s | 파도: {marine['wave']}")
+    else:
+        lines.append("해양 정보를 가져올 수 없습니다.")
+
+    if tide:
+        lines.append(f"고조: {tide['고조']}")
+        lines.append(f"저조: {tide['저조']}")
+    else:
+        lines.append("조석: API 키 미설정 (KHOA_API_KEY 필요)")
+
+    return "\n".join(lines)
 
 
 def generate_daily_message():
     today = date.today()
     ages = _calculate_ages(today)
     date_str = today.strftime("%Y년 %m월 %d일")
-    weather = _get_weather()
+    weather_suncheon = _get_weather_suncheon()
+    gwangyang_section = _format_marine_section("광양", "Gwangyang")
+    yeosu_section = _format_marine_section("여수", "Yeosu")
+
+    weather_block = (
+        f"🌤️ 순천\n{weather_suncheon}\n\n"
+        f"{gwangyang_section}\n\n"
+        f"{yeosu_section}"
+    )
 
     prompt = f"""오늘은 {date_str}이야.
 
-오늘 날씨 (서울): {weather}
+[날씨 / 해양 정보]
+{weather_block}
 
 첫째: 정바로 (남아, 생후 {ages['baro_months']}개월 {ages['baro_days']}일)
 둘째: 왕눈이 (임신 {ages['preg_weeks']}주 {ages['preg_day']}일, 출산예정일 2027년 1월 10일, D-{ages['days_left']}일)
@@ -87,10 +178,9 @@ def generate_daily_message():
 
 ☀️ {date_str} 오늘의 육아 정보
 
-🌤️ 오늘 날씨 (서울)
+🌤️ 날씨 / 해양 정보
 ━━━━━━━━━━━━━━━
-{weather}
-• [날씨에 맞는 외출 팁이나 아이 옷차림 조언 — 구체적으로 2줄]
+{weather_block}
 
 👶 정바로 ({ages['baro_months']}개월 {ages['baro_days']}일)
 ━━━━━━━━━━━━━━━

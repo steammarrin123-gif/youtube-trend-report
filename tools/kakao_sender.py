@@ -15,7 +15,8 @@ def send_to_me(message_text):
     template = json.dumps({
         "object_type": "text",
         "text": message_text,
-        "link": {"web_url": "", "mobile_web_url": ""},
+        "link": {"web_url": "https://kakao.com", "mobile_web_url": "https://kakao.com"},
+        "button_title": "닫기",
     }, ensure_ascii=False)
 
     data = urllib.parse.urlencode({"template_object": template}).encode("utf-8")
