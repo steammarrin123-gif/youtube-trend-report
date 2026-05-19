@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🏃 무한 달리기</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#111;font-family:'Segoe UI',sans-serif;color:#fff;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:10px;}
+#top-bar{width:100%;max-width:560px;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+#top-bar a{color:#aaa;text-decoration:none;font-size:.85rem;}
+#music-btn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:6px;color:#fff;font-size:.85rem;padding:4px 10px;cursor:pointer;}
+canvas{display:block;border-radius:10px;}
+#hud{width:100%;max-width:560px;display:flex;justify-content:space-between;padding:5px 2px;font-size:.85rem;}
+#btns{display:flex;gap:10px;margin-top:10px;}
+.gbtn{background:rgba(255,255,255,.1);border:2px solid rgba(255,255,255,.2);border-radius:10px;color:#fff;font-size:1.1rem;font-weight:bold;width:120px;height:52px;cursor:pointer;user-select:none;transition:background .1s;}
+.gbtn:active{background:rgba(255,255,255,.3);}
+</style>
+</head>
+<body>
+<div id="top-bar">
+  <a href="index.html">← 메뉴</a>
+  <button id="music-btn" onclick="toggleMusic()">🎵 켜기</button>
+</div>
+<canvas id="c" width="560" height="300"></canvas>
+<div id="hud">
+  <span>🏃 거리: <b id="h-dist">0</b>m</span>
+  <span>🪙 코인: <b id="h-coins" style="color:#ffd700">0</b></span>
+  <span>🏆 최고: <b id="h-best">0</b>m</span>
+</div>
+<div id="btns">
+  <button class="gbtn" id="btn-jump" onpointerdown="doJump()">⬆ 점프</button>
+  <button class="gbtn" id="btn-slide" onpointerdown="doSlide()">⬇ 슬라이드</button>
+</div>
+
+<script>
+// ===== 음악 3채널 =====
+const N={R:0,C3:131,G3:196,A3:220,C4:262,D4:294,E4:330,G4:392,A4:440,B4:494,C5:523,D5:587,E5:659,G5:784,A5:880};
+const LEAD2=[[N.E5,.25],[N.E5,.25],[N.R,.25],[N.E5,.25],[N.C5,.5],[N.E5,.5],[N.G5,.5],[N.R,.25],[N.G4,.25],[N.R,.5],[N.C5,.5],[N.R,.25],[N.G4,.5],[N.R,.25],[N.E4,.5],[N.A4,.5],[N.B4,.5],[N.A4,.5],[N.G4,.33],[N.E5,.33],[N.G5,.33],[N.A5,.5],[N.F5,.25],[N.G5,.25],[N.R,.25],[N.E5,.5],[N.C5,.25],[N.D5,.25],[N.B4,.5]];
+const BASS3=[[N.C3,.5],[N.C3,.5],[N.G3,.5],[N.G3,.5],[N.A3,.5],[N.A3,.5],[N.G3,.5],[N.G3,.5]];
+let audioCtx=null,musicOn=false,mTimer=null,mNxt=[0,0],mIdx=[0,0];
+function gc(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();return audioCtx;}
+function sn(f,t,dur,type='square',vol=.07){const ctx=gc();if(!f)return;const o=ctx.createOscillator(),g=ctx.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.001,t+dur*.85);o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+dur);}
+function drm(t,type){const ctx=gc();const buf=ctx.createBuffer(1,ctx.sampleRate*.1,ctx.sampleRate);const d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*(1-i/d.length);const src=ctx.createBufferSource(),g=ctx.createGain(),f=ctx.createBiquadFilter();src.buffer=buf;f.type='lowpass';f.frequency.value=type==='kick'?200:6000;g.gain.setValueAtTime(type==='kick'?.4:.15,t);g.gain.exponentialRampToValueAtTime(.001,t+.07);src.connect(f);f.connect(g);g.connect(ctx.destination);src.start(t);}
+function schedM(){
+  if(!musicOn)return;
+  const ctx=gc(),b=60/170;
+  while(mNxt[0]<ctx.currentTime+.3){const[f,beats]=LEAD2[mIdx[0]];sn(f,mNxt[0],b*beats*.9);mNxt[0]+=b*beats;mIdx[0]=(mIdx[0]+1)%LEAD2.length;}
+  while(mNxt[1]<ctx.currentTime+.3){const[f,beats]=BASS3[mIdx[1]];sn(f,mNxt[1],b*beats*.9,'square',.05);mNxt[1]+=b*beats;mIdx[1]=(mIdx[1]+1)%BASS3.length;}
+  const now=ctx.currentTime,b2=60/170;
+  for(let i=0;i<4;i++){const t=Math.ceil(now/b2)*b2+i*b2;if(t>now+.05&&t<now+.3){drm(t,'kick');if(i%2===1)drm(t+b2*.5,'snare');}}
+  mTimer=setTimeout(schedM,100);
+}
+function toggleMusic(){const btn=document.getElementById('music-btn');if(musicOn){musicOn=false;clearTimeout(mTimer);btn.textContent='🎵 켜기';}else{musicOn=true;const ctx=gc();ctx.resume();mNxt=[ctx.currentTime+.1,ctx.currentTime+.1];mIdx=[0,0];schedM();btn.textContent='🔇 끄기';}}
+function sfxPlay(f,dur){const ctx=gc();ctx.resume();const o=ctx.createOscillator(),g=ctx.createGain();o.type='square';o.frequency.value=f;g.gain.setValueAtTime(.15,ctx.currentTime);g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+dur);o.connect(g);g.connect(ctx.destination);o.start();o.stop(ctx.currentTime+dur);}
+
+// ===== 게임 =====
+const cv=document.getElementById('c'),cx=cv.getContext('2d');
+const W=560,H=300,GY=230; // 지면 Y
+let state='title',dist=0,coins=0,speed=5,frame2=0,best=Number(localStorage.getItem('best_runner')||0);
+let player,obstacles=[],coinObjs=[],particles3=[],bgObjs=[];
+let obTimer=0,coinTimer=0,bgTimer=0;
+
+// 배경 오브젝트 (시차 효과)
+function initBg(){
+  bgObjs=[];
+  // 구름
+  for(let i=0;i<6;i++)bgObjs.push({type:'cloud',x:Math.random()*W,y:30+Math.random()*60,w:60+Math.random()*50,spd:.5+Math.random()*.5});
+  // 산
+  for(let i=0;i<4;i++)bgObjs.push({type:'mountain',x:i*160+Math.random()*80,h:60+Math.random()*50,w:100+Math.random()*60,spd:.8});
+  // 나무
+  for(let i=0;i<8;i++)bgObjs.push({type:'tree',x:Math.random()*W,spd:1.5+Math.random()*.5});
+}
+
+function initPlayer(){
+  player={x:90,y:GY,w:36,h:48,vy:0,jumping:false,sliding:false,slideTimer:0,frame:0,frameTimer:0,shield:false,shieldTimer:0,dead:false};
+}
+
+function doJump(){
+  if(state==='title'||state==='over'){startGame();return;}
+  if(!player.jumping){player.vy=-14;player.jumping=true;sfxPlay(660,.08);setTimeout(()=>sfxPlay(880,.05),.05);}
+}
+function doSlide(){
+  if(state==='title'||state==='over'){startGame();return;}
+  if(!player.jumping&&!player.sliding){player.sliding=true;player.slideTimer=35;}
+}
+
+function spawnObs(){
+  const r=Math.random();
+  if(r<.35){
+    // 지면 장애물 (점프 필요)
+    const h=40+Math.random()*30;
+    obstacles.push({x:W+20,y:GY-h+player.h,w:28,h,type:'ground',icon:'🪨'});
+  } else if(r<.6){
+    // 높은 기둥 (점프 필요)
+    const h=80+Math.random()*30;
+    obstacles.push({x:W+20,y:GY-h+player.h,w:24,h,type:'tall',icon:'🌵'});
+  } else if(r<.8){
+    // 낮은 바 (슬라이드 필요)
+    obstacles.push({x:W+20,y:GY-60,w:60,h:22,type:'bar',icon:'⚡'});
+  } else {
+    // 새 (날아다니는)
+    obstacles.push({x:W+20,y:GY-90-Math.random()*30,w:30,h:25,type:'bird',icon:'🦅',vy:.5,vyDir:1});
+  }
+}
+
+function spawnCoin(){
+  const y=GY-20-Math.random()*80;
+  for(let i=0;i<3;i++)coinObjs.push({x:W+20+i*36,y,r:10,collected:false});
+}
+
+function spawnPowerup(){
+  const types=['shield','speed'];
+  const t=types[Math.floor(Math.random()*types.length)];
+  obstacles.push({x:W+20,y:GY-80,w:30,h:30,type:'powerup',icon:t==='shield'?'🛡️':'⚡',ptype:t});
+}
+
+function update2(){
+  if(state!=='play')return;
+  frame2++;dist=Math.floor(frame2/6);
+  speed=5+Math.floor(dist/100)*.5;
+  document.getElementById('h-dist').textContent=dist;
+
+  // 플레이어 물리
+  player.vy+=.7;player.y+=player.vy;
+  if(player.y>=GY){player.y=GY;player.vy=0;player.jumping=false;}
+  if(player.sliding){player.slideTimer--;if(player.slideTimer<=0)player.sliding=false;}
+  if(player.shieldTimer>0){player.shieldTimer--;if(player.shieldTimer===0)player.shield=false;}
+  // 달리기 프레임
+  player.frameTimer++;if(player.frameTimer>=8){player.frame=(player.frame+1)%2;player.frameTimer=0;}
+
+  // 배경
+  bgObjs.forEach(b=>{b.x-=b.spd*(speed/5);if(b.x<-200)b.x=W+50;});
+
+  // 장애물 스폰
+  obTimer++;const interval=Math.max(55,100-dist/10);
+  if(obTimer>=interval){
+    spawnObs();
+    if(Math.random()<.15)spawnPowerup();
+    obTimer=0;
+  }
+  // 코인 스폰
+  coinTimer++;if(coinTimer>=80){spawnCoin();coinTimer=0;}
+
+  // 장애물 이동 & 충돌
+  const ph=player.sliding?player.h/2:player.h;
+  const py=player.sliding?player.y-ph/2+player.h/2:player.y-ph/2;
+  for(let i=obstacles.length-1;i>=0;i--){
+    const o=obstacles[i];
+    if(o.type==='bird'){o.vy+=.03*o.vyDir;if(Math.abs(o.vy)>.8)o.vyDir*=-1;o.y+=o.vy;}
+    o.x-=speed;
+    if(o.x<-60){obstacles.splice(i,1);continue;}
+    if(o.type==='powerup'){
+      if(Math.abs(o.x-player.x)<(o.w/2+18)&&Math.abs(o.y-player.y)<(o.h/2+ph/2)){
+        if(o.ptype==='shield'){player.shield=true;player.shieldTimer=300;}
+        else speed=Math.max(5,speed-1);
+        addP3(o.x,o.y,'#ffd700',12);sfxPlay(1000,.08);obstacles.splice(i,1);
+      }
+      continue;
+    }
+    if(Math.abs(o.x-(player.x))< (o.w/2+14)&&Math.abs((o.y-o.h/2)-(py+ph/2))<(o.h/2+ph/2)){
+      if(player.shield){player.shield=false;player.shieldTimer=0;addP3(player.x,player.y,'#4af',15);sfxPlay(440,.1);obstacles.splice(i,1);}
+      else{playerDie();}
+    }
+  }
+
+  // 코인 이동 & 수집
+  for(let i=coinObjs.length-1;i>=0;i--){
+    const c=coinObjs[i];c.x-=speed;
+    if(c.x<-20){coinObjs.splice(i,1);continue;}
+    if(!c.collected&&Math.abs(c.x-player.x)<24&&Math.abs(c.y-player.y)<24){
+      c.collected=true;coins++;document.getElementById('h-coins').textContent=coins;
+      addP3(c.x,c.y,'#ffd700',6);sfxPlay(880,.04);
+    }
+    if(c.collected)coinObjs.splice(i,1);
+  }
+
+  // 파티클
+  particles3.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.15;p.life-=.03;});
+  particles3=particles3.filter(p=>p.life>0);
+}
+
+function playerDie(){
+  player.dead=true;
+  addP3(player.x,player.y,'#e74c3c',20);
+  sfxPlay(300,.08);setTimeout(()=>sfxPlay(200,.08),.1);setTimeout(()=>sfxPlay(150,.2),.2);
+  if(dist>best){best=dist;localStorage.setItem('best_runner',best);}
+  document.getElementById('h-best').textContent=best;
+  setTimeout(()=>{state='over';},600);
+}
+
+function addP3(x,y,color,count){
+  for(let i=0;i<count;i++){const a=Math.random()*Math.PI*2,s=Math.random()*4+1;particles3.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-2,life:1,color});}
+}
+
+function draw3(){
+  // 하늘
+  const grad=cx.createLinearGradient(0,0,0,GY);
+  grad.addColorStop(0,'#1a1a3e');grad.addColorStop(1,'#2d4a6b');
+  cx.fillStyle=grad;cx.fillRect(0,0,W,H);
+
+  // 구름
+  bgObjs.filter(b=>b.type==='cloud').forEach(b=>{
+    cx.fillStyle='rgba(255,255,255,.15)';
+    cx.beginPath();cx.ellipse(b.x,b.y,b.w/2,15,0,0,Math.PI*2);cx.fill();
+    cx.beginPath();cx.ellipse(b.x-15,b.y+5,b.w/3,12,0,0,Math.PI*2);cx.fill();
+    cx.beginPath();cx.ellipse(b.x+15,b.y+5,b.w/3,12,0,0,Math.PI*2);cx.fill();
+  });
+  // 산
+  bgObjs.filter(b=>b.type==='mountain').forEach(b=>{
+    cx.fillStyle='rgba(60,80,120,.5)';cx.beginPath();cx.moveTo(b.x-b.w/2,GY);cx.lineTo(b.x,GY-b.h);cx.lineTo(b.x+b.w/2,GY);cx.closePath();cx.fill();
+  });
+  // 나무
+  bgObjs.filter(b=>b.type==='tree').forEach(b=>{
+    cx.fillStyle='#1a3a1a';cx.fillRect(b.x-4,GY-35,8,35);
+    cx.fillStyle='#2a5a2a';cx.beginPath();cx.moveTo(b.x-14,GY-30);cx.lineTo(b.x,GY-65);cx.lineTo(b.x+14,GY-30);cx.closePath();cx.fill();
+  });
+
+  // 지면
+  cx.fillStyle='#3d2b0f';cx.fillRect(0,GY,W,H-GY);
+  cx.fillStyle='#5a4020';cx.fillRect(0,GY,W,6);
+  // 지면 줄무늬 (속도감)
+  cx.strokeStyle='rgba(255,255,255,.08)';cx.lineWidth=2;
+  for(let x=(frame2*speed)%60;x<W;x+=60){cx.beginPath();cx.moveTo(x,GY+3);cx.lineTo(x-20,GY+6);cx.stroke();}
+
+  // 코인
+  coinObjs.forEach(c=>{
+    cx.fillStyle='#ffd700';cx.shadowBlur=8;cx.shadowColor='#ffd700';
+    cx.beginPath();cx.arc(c.x,c.y,c.r,0,Math.PI*2);cx.fill();
+    cx.fillStyle='#fff8';cx.beginPath();cx.arc(c.x-2,c.y-2,3,0,Math.PI*2);cx.fill();
+    cx.shadowBlur=0;
+  });
+
+  // 장애물
+  obstacles.forEach(o=>{
+    if(o.type==='powerup'){cx.font='1.5rem sans-serif';cx.textAlign='center';cx.textBaseline='middle';cx.fillText(o.icon,o.x,o.y);return;}
+    cx.fillStyle=o.type==='bar'?'#e74c3c33':'rgba(255,100,50,.2)';
+    cx.strokeStyle=o.type==='bar'?'#e74c3c':'#f84';cx.lineWidth=2;
+    if(o.type==='bar'){cx.fillRect(o.x-o.w/2,o.y,o.w,o.h);cx.strokeRect(o.x-o.w/2,o.y,o.w,o.h);}
+    cx.font=(o.type==='bird'?'1.5':'1.8')+'rem sans-serif';cx.textAlign='center';cx.textBaseline='middle';
+    cx.fillText(o.icon,o.x,o.y+(o.type==='bar'?o.h/2:o.h/2));
+  });
+
+  // 플레이어
+  if(!player.dead){
+    cx.save();cx.translate(player.x,player.y);
+    if(player.shield){cx.strokeStyle='rgba(100,200,255,.6)';cx.lineWidth=3;cx.beginPath();cx.arc(0,-player.h/2,28,0,Math.PI*2);cx.stroke();}
+    const runFrames=['🏃','🏃'];
+    const icon=player.jumping?'🦘':player.sliding?'🤸':runFrames[player.frame];
+    cx.font=(player.sliding?'1.8':'2.2')+'rem sans-serif';cx.textAlign='center';cx.textBaseline='bottom';
+    if(player.sliding){cx.scale(1,.6);}
+    cx.fillText(icon,0,0);
+    cx.restore();
+  }
+
+  // 파티클
+  particles3.forEach(p=>{cx.globalAlpha=p.life;cx.fillStyle=p.color;cx.beginPath();cx.arc(p.x,p.y,4,0,Math.PI*2);cx.fill();});
+  cx.globalAlpha=1;
+
+  // HUD 오버레이
+  if(state==='title'){
+    cx.fillStyle='rgba(0,0,0,.6)';cx.fillRect(0,0,W,H);
+    cx.textAlign='center';cx.fillStyle='#fff';cx.font='bold 2rem sans-serif';cx.fillText('🏃 무한 달리기',W/2,H/2-50);
+    cx.font='1rem sans-serif';cx.fillStyle='#aaa';cx.fillText('점프: 스페이스 / ↑ / 버튼',W/2,H/2);
+    cx.fillText('슬라이드: ↓ / 버튼',W/2,H/2+30);
+    cx.fillStyle='#ffd700';cx.font='.9rem sans-serif';cx.fillText('최고 기록: '+best+'m',W/2,H/2+65);
+    cx.fillStyle='#4af';cx.fillText('화면 클릭하면 시작',W/2,H/2+95);
+  }
+  if(state==='over'){
+    cx.fillStyle='rgba(0,0,0,.65)';cx.fillRect(0,0,W,H);
+    cx.textAlign='center';cx.fillStyle='#f55';cx.font='bold 1.8rem sans-serif';cx.fillText('💀 게임 오버',W/2,H/2-45);
+    cx.fillStyle='#ffd700';cx.font='1.3rem sans-serif';cx.fillText(dist+'m · 🪙'+coins,W/2,H/2);
+    cx.fillStyle='#aaa';cx.font='.9rem sans-serif';cx.fillText('최고 기록: '+best+'m',W/2,H/2+35);
+    cx.fillStyle='#4af';cx.fillText('클릭하면 다시 시작',W/2,H/2+65);
+  }
+}
+
+function startGame(){
+  state='play';dist=0;coins=0;speed=5;frame2=0;
+  obstacles=[];coinObjs=[];particles3=[];obTimer=0;coinTimer=0;
+  initPlayer();initBg();
+  document.getElementById('h-dist').textContent=0;
+  document.getElementById('h-coins').textContent=0;
+}
+
+function loop3(){update2();draw3();requestAnimationFrame(loop3);}
+
+// 입력
+document.addEventListener('keydown',e=>{
+  if(e.code==='Space'||e.code==='ArrowUp'){doJump();e.preventDefault();}
+  if(e.code==='ArrowDown'){doSlide();e.preventDefault();}
+});
+cv.addEventListener('click',()=>{if(state!=='play')startGame();else doJump();});
+cv.addEventListener('touchstart',e=>{e.preventDefault();if(state!=='play')startGame();else doJump();},{passive:false});
+
+initBg();initPlayer();
+document.getElementById('h-best').textContent=best;
+loop3();
+</script>
+</body>
+</html>
