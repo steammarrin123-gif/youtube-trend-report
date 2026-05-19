@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🍪 쿠키 클리커</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Segoe UI',sans-serif; background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460); min-height:100vh; color:#fff; display:flex; flex-direction:column; align-items:center; padding:16px; }
+  #top-bar { width:100%; max-width:420px; display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  #top-bar a { color:#aaa; text-decoration:none; font-size:0.9rem; }
+  #top-bar a:hover { color:#fff; }
+  #music-btn { background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); border-radius:8px; color:#fff; font-size:0.9rem; padding:5px 12px; cursor:pointer; }
+  h1 { font-size:1.8rem; margin-bottom:4px; }
+  #score-display { font-size:1.4rem; color:#ffd700; margin-bottom:2px; }
+  #best-display  { font-size:0.85rem; color:#888; margin-bottom:4px; }
+  #cps-display   { font-size:0.9rem; color:#aaa; margin-bottom:18px; }
+  #cookie-btn { width:150px; height:150px; border-radius:50%; border:none; font-size:5rem; cursor:pointer; background:radial-gradient(circle,#f4a261,#e76f51); box-shadow:0 0 30px rgba(244,162,97,0.5); transition:transform 0.08s,box-shadow 0.08s; display:block; margin:0 auto 22px; user-select:none; }
+  #cookie-btn:active { transform:scale(0.93); box-shadow:0 0 15px rgba(244,162,97,0.3); }
+  .click-text { position:fixed; pointer-events:none; font-size:1.2rem; font-weight:bold; color:#ffd700; animation:floatUp 0.8s ease-out forwards; z-index:999; }
+  @keyframes floatUp { 0%{opacity:1;transform:translateY(0)} 100%{opacity:0;transform:translateY(-80px)} }
+  #shop { width:100%; max-width:420px; }
+  #shop h2 { font-size:1rem; color:#aaa; margin-bottom:10px; border-bottom:1px solid #333; padding-bottom:6px; }
+  .item { background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:12px 14px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; }
+  .item-left { display:flex; flex-direction:column; gap:2px; }
+  .item-name { font-size:0.95rem; font-weight:bold; }
+  .item-desc { font-size:0.75rem; color:#aaa; }
+  .item-count { font-size:0.8rem; color:#ffd700; }
+  .buy-btn { background:linear-gradient(135deg,#f4a261,#e76f51); border:none; border-radius:8px; color:#fff; font-size:0.85rem; font-weight:bold; padding:7px 12px; cursor:pointer; transition:opacity 0.2s; white-space:nowrap; }
+  .buy-btn:disabled { opacity:0.3; cursor:default; }
+</style>
+</head>
+<body>
+<div id="top-bar">
+  <a href="index.html">← 메뉴</a>
+  <button id="music-btn" onclick="toggleMusic()">🎵 음악 켜기</button>
+</div>
+<h1>🍪 쿠키 클리커</h1>
+<div id="score-display">쿠키: 0개</div>
+<div id="best-display">최고: 0개</div>
+<div id="cps-display">초당 생산: 0개</div>
+<button id="cookie-btn" onclick="clickCookie(event)">🍪</button>
+<div id="shop"><h2>🏪 업그레이드 상점</h2><div id="items"></div></div>
+
+<script>
+// ===== 음악 시스템 =====
+const N = {R:0,C4:262,D4:294,E4:330,F4:349,G4:392,A4:440,B4:494,C5:523,D5:587,E5:659,F5:698,G5:784,A5:880,C6:1047};
+const MELODY = [
+  [N.E5,.5],[N.G5,.5],[N.A5,1],[N.G5,.5],[N.E5,.5],[N.C5,1],
+  [N.D5,.5],[N.F5,.5],[N.E5,1],[N.R,.5],[N.C5,.5],
+  [N.E5,.5],[N.G5,.5],[N.A5,.5],[N.G5,1],[N.F5,.5],
+  [N.E5,.5],[N.D5,.5],[N.C5,.5],[N.R,1],
+];
+let audioCtx=null, musicPlaying=false, musicTimer=null, nextNote=0, noteIdx=0;
+function getCtx(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();return audioCtx;}
+function schedNote(freq,t,dur){
+  const ctx=getCtx(); if(!freq)return;
+  const o=ctx.createOscillator(),g=ctx.createGain();
+  o.type='square'; o.frequency.value=freq;
+  g.gain.setValueAtTime(0.07,t); g.gain.exponentialRampToValueAtTime(0.001,t+dur*0.85);
+  o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t+dur);
+}
+function schedMusic(){
+  if(!musicPlaying)return;
+  const ctx=getCtx(), beat=60/130;
+  while(nextNote<ctx.currentTime+0.3){
+    const[freq,beats]=MELODY[noteIdx];
+    schedNote(freq,nextNote,beat*beats*0.9);
+    nextNote+=beat*beats;
+    noteIdx=(noteIdx+1)%MELODY.length;
+  }
+  musicTimer=setTimeout(schedMusic,100);
+}
+function toggleMusic(){
+  const btn=document.getElementById('music-btn');
+  if(musicPlaying){musicPlaying=false;clearTimeout(musicTimer);btn.textContent='🎵 음악 켜기';}
+  else{musicPlaying=true;const ctx=getCtx();ctx.resume();nextNote=ctx.currentTime+0.1;noteIdx=0;schedMusic();btn.textContent='🔇 음악 끄기';}
+}
+function beep(freq,dur){
+  const ctx=getCtx();ctx.resume();
+  const o=ctx.createOscillator(),g=ctx.createGain();
+  o.type='square';o.frequency.value=freq;
+  g.gain.setValueAtTime(0.15,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+dur);
+  o.connect(g);g.connect(ctx.destination);o.start();o.stop(ctx.currentTime+dur);
+}
+
+// ===== 게임 =====
+let cookies=0, cps=0, clickPower=1;
+const upgrades=[
+  {id:0,name:"👆 클릭 강화",   desc:"클릭당 +1 추가",   baseCost:15,  owned:0,cpsBonus:0,clickBonus:1},
+  {id:1,name:"🖱️ 자동 클릭기",desc:"초당 쿠키 +1",     baseCost:50,  owned:0,cpsBonus:1,clickBonus:0},
+  {id:2,name:"🧑‍🍳 할머니",    desc:"초당 쿠키 +5",     baseCost:200, owned:0,cpsBonus:5,clickBonus:0},
+  {id:3,name:"🏭 공장",         desc:"초당 쿠키 +20",    baseCost:800, owned:0,cpsBonus:20,clickBonus:0},
+  {id:4,name:"⛏️ 광산",         desc:"초당 쿠키 +80",    baseCost:3000,owned:0,cpsBonus:80,clickBonus:0},
+  {id:5,name:"🚀 우주선",        desc:"초당 쿠키 +300",   baseCost:12000,owned:0,cpsBonus:300,clickBonus:0},
+  {id:6,name:"🌌 차원문",        desc:"초당 쿠키 +1000",  baseCost:50000,owned:0,cpsBonus:1000,clickBonus:0},
+];
+let best=Number(localStorage.getItem('best_clicker')||0);
+
+function getCost(u){return Math.floor(u.baseCost*Math.pow(1.15,u.owned));}
+
+function clickCookie(e){
+  cookies+=clickPower;
+  if(cookies>best){best=Math.floor(cookies);localStorage.setItem('best_clicker',best);}
+  updateDisplay();
+  beep(660,0.05);
+  const el=document.createElement('div');
+  el.className='click-text'; el.textContent='+'+clickPower;
+  el.style.left=(e.clientX-15)+'px'; el.style.top=(e.clientY-20)+'px';
+  document.body.appendChild(el); setTimeout(()=>el.remove(),800);
+}
+
+function buyUpgrade(id){
+  const u=upgrades[id], cost=getCost(u);
+  if(cookies<cost)return;
+  cookies-=cost; u.owned++; cps+=u.cpsBonus; clickPower+=u.clickBonus;
+  beep(880,0.1);
+  renderShop(); updateDisplay();
+}
+
+function updateDisplay(){
+  document.getElementById('score-display').textContent='쿠키: '+Math.floor(cookies).toLocaleString()+'개';
+  document.getElementById('best-display').textContent='최고: '+best.toLocaleString()+'개';
+  document.getElementById('cps-display').textContent='초당 생산: '+cps+'개';
+  document.querySelectorAll('.buy-btn').forEach((btn,i)=>{btn.disabled=cookies<getCost(upgrades[i]);});
+}
+
+function renderShop(){
+  const c=document.getElementById('items'); c.innerHTML='';
+  upgrades.forEach(u=>{
+    const cost=getCost(u),div=document.createElement('div');
+    div.className='item';
+    div.innerHTML=`<div class="item-left"><div class="item-name">${u.name}</div><div class="item-desc">${u.desc}</div><div class="item-count">보유: ${u.owned}개</div></div><button class="buy-btn" onclick="buyUpgrade(${u.id})" ${cookies<cost?'disabled':''}>🍪 ${cost.toLocaleString()}</button>`;
+    c.appendChild(div);
+  });
+}
+
+setInterval(()=>{if(cps>0){cookies+=cps/20;if(cookies>best){best=Math.floor(cookies);localStorage.setItem('best_clicker',best);}updateDisplay();}},50);
+renderShop(); updateDisplay();
+</script>
+</body>
+</html>

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🃏 카드 뒤집기</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Segoe UI',sans-serif;background:linear-gradient(135deg,#11998e,#38ef7d);min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;}
+  #top-bar{width:100%;max-width:440px;display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+  #top-bar a{color:rgba(255,255,255,0.8);text-decoration:none;font-size:0.9rem;}
+  #music-btn{background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);border-radius:8px;color:#fff;font-size:0.9rem;padding:5px 12px;cursor:pointer;}
+  h1{color:#fff;font-size:1.6rem;margin-bottom:4px;text-shadow:0 2px 8px rgba(0,0,0,0.2);}
+  #level-btns{display:flex;gap:8px;margin-bottom:10px;}
+  .lvl-btn{background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.4);border-radius:8px;color:#fff;font-size:0.85rem;font-weight:bold;padding:5px 13px;cursor:pointer;transition:background .2s;}
+  .lvl-btn.active,.lvl-btn:hover{background:rgba(255,255,255,0.4);}
+  #stats{display:flex;gap:18px;color:#fff;font-size:0.9rem;margin-bottom:12px;text-shadow:0 1px 4px rgba(0,0,0,0.2);}
+  #stats span{font-weight:bold;}
+  #board{display:grid;gap:10px;margin-bottom:14px;}
+  .card{width:75px;height:75px;border-radius:10px;cursor:pointer;position:relative;transform-style:preserve-3d;transition:transform .35s ease;}
+  .card.flipped{transform:rotateY(180deg);}
+  .card.matched{transform:rotateY(180deg);cursor:default;}
+  .card-face{position:absolute;inset:0;border-radius:10px;display:flex;align-items:center;justify-content:center;backface-visibility:hidden;}
+  .card-back{background:linear-gradient(135deg,#1a1a2e,#16213e);font-size:1.6rem;border:2px solid rgba(255,255,255,0.15);}
+  .card-front{background:#fff;transform:rotateY(180deg);font-size:2rem;}
+  .card.matched .card-front{background:#d4edda;box-shadow:0 0 0 3px #27ae60;}
+  #restart-btn{background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.4);border-radius:10px;color:#fff;font-size:0.95rem;font-weight:bold;padding:9px 24px;cursor:pointer;}
+  #best-line{color:rgba(255,255,255,0.8);font-size:0.85rem;margin-bottom:8px;}
+  #win-msg{display:none;background:rgba(255,255,255,0.95);border-radius:16px;padding:24px 32px;text-align:center;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);box-shadow:0 10px 40px rgba(0,0,0,0.3);z-index:10;}
+  #win-msg h2{font-size:1.8rem;margin-bottom:6px;}
+  #win-msg p{color:#555;margin-bottom:14px;}
+  #win-btn{background:linear-gradient(135deg,#11998e,#38ef7d);border:none;border-radius:10px;color:#fff;font-size:1rem;font-weight:bold;padding:11px 26px;cursor:pointer;}
+</style>
+</head>
+<body>
+<div id="top-bar">
+  <a href="index.html">← 메뉴</a>
+  <button id="music-btn" onclick="toggleMusic()">🎵 음악 켜기</button>
+</div>
+<h1>🃏 카드 뒤집기</h1>
+<div id="level-btns">
+  <button class="lvl-btn active" onclick="setLevel(4,4,this)">쉬움 4×4</button>
+  <button class="lvl-btn" onclick="setLevel(4,5,this)">보통 4×5</button>
+  <button class="lvl-btn" onclick="setLevel(6,5,this)">어려움 6×5</button>
+</div>
+<div id="best-line">최고 기록: —</div>
+<div id="stats">
+  <div>🔄 <span id="moves">0</span>번</div>
+  <div>✅ <span id="pairs">0</span>쌍</div>
+  <div>⏱ <span id="timer">0</span>초</div>
+</div>
+<div id="board"></div>
+<button id="restart-btn" onclick="startGame()">🔄 다시 시작</button>
+<div id="win-msg">
+  <h2>🎉 완성!</h2>
+  <p id="win-detail"></p>
+  <button id="win-btn" onclick="closeWin()">다시 도전 🔄</button>
+</div>
+
+<script>
+const N={R:0,C4:262,D4:294,E4:330,F4:349,G4:392,A4:440,B4:494,C5:523,D5:587,E5:659,F5:698,G5:784,A5:880,C6:1047};
+const MELODY=[[N.C5,.5],[N.E5,.5],[N.G5,.5],[N.C6,.5],[N.G5,.5],[N.E5,.5],[N.C5,1],[N.F4,.5],[N.A4,.5],[N.C5,.5],[N.F5,.5],[N.C5,.5],[N.A4,.5],[N.F4,1],[N.G4,.5],[N.B4,.5],[N.D5,.5],[N.G5,.5],[N.D5,.5],[N.B4,.5],[N.G4,1],[N.E4,.5],[N.G4,.5],[N.C5,.5],[N.E5,.5],[N.D5,.5],[N.C5,.5],[N.R,1]];
+let audioCtx=null,musicPlaying=false,musicTimer=null,nextNote=0,noteIdx=0;
+function getCtx(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();return audioCtx;}
+function schedNote(freq,t,dur){const ctx=getCtx();if(!freq)return;const o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';o.frequency.value=freq;g.gain.setValueAtTime(0.09,t);g.gain.exponentialRampToValueAtTime(0.001,t+dur*0.9);o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+dur);}
+function schedMusic(){if(!musicPlaying)return;const ctx=getCtx(),beat=60/100;while(nextNote<ctx.currentTime+0.3){const[freq,beats]=MELODY[noteIdx];schedNote(freq,nextNote,beat*beats*0.9);nextNote+=beat*beats;noteIdx=(noteIdx+1)%MELODY.length;}musicTimer=setTimeout(schedMusic,100);}
+function toggleMusic(){const btn=document.getElementById('music-btn');if(musicPlaying){musicPlaying=false;clearTimeout(musicTimer);btn.textContent='🎵 음악 켜기';}else{musicPlaying=true;const ctx=getCtx();ctx.resume();nextNote=ctx.currentTime+0.1;noteIdx=0;schedMusic();btn.textContent='🔇 음악 끄기';}}
+function beep(freq,dur){const ctx=getCtx();ctx.resume();const o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';o.frequency.value=freq;g.gain.setValueAtTime(0.2,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+dur);o.connect(g);g.connect(ctx.destination);o.start();o.stop(ctx.currentTime+dur);}
+
+const EMOJIS=['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🐔','🦆','🦋','🐙','🦀','🐠','🌸','🍓','🍕'];
+let cols=4,rows=4,flipped=[],matched=0,moves=0,totalPairs=0,canClick=true,timerVal=0,timerInterval=null,gameStarted=false;
+
+function setLevel(c,r,btn){document.querySelectorAll('.lvl-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');cols=c;rows=r;startGame();}
+function startGame(){
+  clearInterval(timerInterval);timerVal=0;moves=0;matched=0;flipped=[];canClick=true;gameStarted=false;totalPairs=(cols*rows)/2;
+  document.getElementById('moves').textContent=0;document.getElementById('pairs').textContent=0;document.getElementById('timer').textContent=0;document.getElementById('win-msg').style.display='none';
+  const board=document.getElementById('board');board.style.gridTemplateColumns=`repeat(${cols},75px)`;
+  const emojis=shuffle(EMOJIS.slice(0,totalPairs));
+  const cards=shuffle([...emojis,...emojis]);
+  board.innerHTML='';
+  cards.forEach((emoji,i)=>{
+    const card=document.createElement('div');card.className='card';card.dataset.emoji=emoji;card.dataset.index=i;
+    card.innerHTML=`<div class="card-face card-back">🎴</div><div class="card-face card-front">${emoji}</div>`;
+    card.onclick=()=>flipCard(card);board.appendChild(card);
+  });
+  updateBest();
+}
+function flipCard(card){
+  if(!canClick||card.classList.contains('flipped')||card.classList.contains('matched'))return;
+  if(!gameStarted){gameStarted=true;timerInterval=setInterval(()=>{timerVal++;document.getElementById('timer').textContent=timerVal;},1000);}
+  beep(660,.05);card.classList.add('flipped');flipped.push(card);
+  if(flipped.length===2){
+    canClick=false;moves++;document.getElementById('moves').textContent=moves;
+    const[a,b]=flipped;
+    if(a.dataset.emoji===b.dataset.emoji){
+      a.classList.add('matched');b.classList.add('matched');matched++;
+      document.getElementById('pairs').textContent=matched;
+      beep(880,.08);setTimeout(()=>beep(1100,.08),100);
+      flipped=[];canClick=true;if(matched===totalPairs)showWin();
+    } else {
+      beep(200,.15);
+      setTimeout(()=>{a.classList.remove('flipped');b.classList.remove('flipped');flipped=[];canClick=true;},900);
+    }
+  }
+}
+function updateBest(){
+  const key='best_memory_'+cols+'x'+rows;
+  const b=localStorage.getItem(key);
+  document.getElementById('best-line').textContent=b?`최고 기록 (${cols}×${rows}): ${b}`:`최고 기록 (${cols}×${rows}): —`;
+}
+function showWin(){
+  clearInterval(timerInterval);
+  const key='best_memory_'+cols+'x'+rows;
+  const prev=localStorage.getItem(key);
+  const record=`${timerVal}초 · ${moves}번`;
+  const isNew=!prev||timerVal<parseInt(prev);
+  if(isNew)localStorage.setItem(key,timerVal);
+  document.getElementById('win-msg').style.display='block';
+  document.getElementById('win-detail').textContent=record+(isNew?' 🎉 최고 기록!':'');
+  updateBest();beep(1047,.15);setTimeout(()=>beep(1319,.15),150);setTimeout(()=>beep(1568,.2),300);
+}
+function closeWin(){document.getElementById('win-msg').style.display='none';startGame();}
+function shuffle(a){return[...a].sort(()=>Math.random()-.5);}
+startGame();
+</script>
+</body>
+</html>

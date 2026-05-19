@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🧠 퀴즈 게임</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Segoe UI',sans-serif;background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;flex-direction:column;}
+  #top-bar{width:100%;max-width:520px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+  #top-bar a{color:#aaa;text-decoration:none;font-size:0.9rem;}
+  #music-btn{background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:#fff;font-size:0.9rem;padding:5px 12px;cursor:pointer;}
+  #game{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:30px;max-width:520px;width:100%;color:#fff;text-align:center;}
+  #top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;font-size:0.9rem;color:#aaa;}
+  #timer-wrap{width:100%;height:6px;background:rgba(255,255,255,0.1);border-radius:10px;margin-bottom:20px;overflow:hidden;}
+  #timer-bar{height:100%;background:linear-gradient(90deg,#f7971e,#ffd200);border-radius:10px;transition:width .1s linear,background .3s;}
+  #question{font-size:1.2rem;font-weight:bold;line-height:1.6;margin-bottom:24px;min-height:55px;}
+  .choice{width:100%;background:rgba(255,255,255,0.07);border:2px solid rgba(255,255,255,0.1);border-radius:12px;color:#fff;font-size:0.95rem;padding:13px 16px;margin-bottom:9px;cursor:pointer;text-align:left;transition:background .15s,border .15s,transform .1s;}
+  .choice:hover:not(:disabled){background:rgba(255,255,255,0.14);border-color:rgba(255,255,255,0.3);transform:translateX(4px);}
+  .choice.correct{background:rgba(39,174,96,0.35);border-color:#27ae60;}
+  .choice.wrong{background:rgba(231,76,60,0.35);border-color:#e74c3c;}
+  .choice:disabled{cursor:default;}
+  #feedback{font-size:1rem;min-height:26px;margin:8px 0;font-weight:bold;}
+  #next-btn{display:none;margin:8px auto 0;background:linear-gradient(135deg,#f7971e,#ffd200);border:none;border-radius:10px;color:#1a1a2e;font-size:1rem;font-weight:bold;padding:11px 26px;cursor:pointer;}
+  #result,#start-screen{text-align:center;}
+  #start-screen h1{font-size:2rem;margin-bottom:8px;color:#fff;}
+  #start-screen p{color:#aaa;margin-bottom:10px;font-size:0.95rem;line-height:1.7;}
+  .best-badge{color:#ffd700;font-size:0.9rem;margin-bottom:20px;}
+  .action-btn{background:linear-gradient(135deg,#f7971e,#ffd200);border:none;border-radius:12px;color:#1a1a2e;font-size:1rem;font-weight:bold;padding:13px 38px;cursor:pointer;}
+  .score-big{font-size:3rem;font-weight:bold;color:#ffd700;margin:10px 0;}
+  #result p{color:#aaa;margin-bottom:16px;font-size:1rem;}
+</style>
+</head>
+<body>
+<div id="top-bar">
+  <a href="index.html">← 메뉴</a>
+  <button id="music-btn" onclick="toggleMusic()">🎵 음악 켜기</button>
+</div>
+<div id="game">
+  <div id="start-screen">
+    <h1>🧠 퀴즈 게임</h1>
+    <p>10문제 · 문제당 15초<br>빨리 맞힐수록 점수 UP!</p>
+    <div class="best-badge" id="best-badge">최고 기록: 0점</div>
+    <button class="action-btn" onclick="startGame()">게임 시작 🚀</button>
+  </div>
+  <div id="quiz-screen" style="display:none">
+    <div id="top"><span id="q-num">1/10</span><span id="score-label">점수: 0</span><span id="timer-label">⏱ 15</span></div>
+    <div id="timer-wrap"><div id="timer-bar" style="width:100%"></div></div>
+    <div id="question"></div>
+    <div id="choices"></div>
+    <div id="feedback"></div>
+    <button id="next-btn" onclick="nextQuestion()">다음 →</button>
+  </div>
+  <div id="result" style="display:none">
+    <h2 id="r-emoji" style="font-size:2rem;margin-bottom:8px;"></h2>
+    <div class="score-big" id="r-score"></div>
+    <p id="r-msg"></p>
+    <button class="action-btn" onclick="startGame()">다시 도전 🔄</button>
+  </div>
+</div>
+
+<script>
+// ===== 음악 =====
+const N={R:0,C4:262,D4:294,E4:330,F4:349,G4:392,A4:440,B4:494,C5:523,D5:587,E5:659,G5:784,A5:880};
+const MELODY=[[N.A4,1],[N.C5,.5],[N.E5,.5],[N.D5,1],[N.B4,.5],[N.R,.5],[N.G4,1],[N.B4,.5],[N.D5,.5],[N.C5,1],[N.A4,.5],[N.R,.5],[N.F4,.5],[N.A4,.5],[N.C5,1],[N.B4,.5],[N.A4,.5],[N.G4,1],[N.A4,2],[N.R,1]];
+let audioCtx=null,musicPlaying=false,musicTimer=null,nextNote=0,noteIdx=0;
+function getCtx(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();return audioCtx;}
+function schedNote(freq,t,dur){const ctx=getCtx();if(!freq)return;const o=ctx.createOscillator(),g=ctx.createGain();o.type='square';o.frequency.value=freq;g.gain.setValueAtTime(0.07,t);g.gain.exponentialRampToValueAtTime(0.001,t+dur*0.85);o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+dur);}
+function schedMusic(){if(!musicPlaying)return;const ctx=getCtx(),beat=60/110;while(nextNote<ctx.currentTime+0.3){const[freq,beats]=MELODY[noteIdx];schedNote(freq,nextNote,beat*beats*0.9);nextNote+=beat*beats;noteIdx=(noteIdx+1)%MELODY.length;}musicTimer=setTimeout(schedMusic,100);}
+function toggleMusic(){const btn=document.getElementById('music-btn');if(musicPlaying){musicPlaying=false;clearTimeout(musicTimer);btn.textContent='🎵 음악 켜기';}else{musicPlaying=true;const ctx=getCtx();ctx.resume();nextNote=ctx.currentTime+0.1;noteIdx=0;schedMusic();btn.textContent='🔇 음악 끄기';}}
+function beep(freq,dur,type='square'){const ctx=getCtx();ctx.resume();const o=ctx.createOscillator(),g=ctx.createGain();o.type=type;o.frequency.value=freq;g.gain.setValueAtTime(0.2,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+dur);o.connect(g);g.connect(ctx.destination);o.start();o.stop(ctx.currentTime+dur);}
+
+// ===== 퀴즈 =====
+const ALL_Q=[
+  {q:"대한민국의 수도는?",choices:["부산","서울","인천","대구"],answer:1},
+  {q:"1 + 1 × 10 = ?",choices:["20","11","10","12"],answer:1},
+  {q:"세계에서 가장 큰 나라(면적)는?",choices:["미국","중국","캐나다","러시아"],answer:3},
+  {q:"물의 화학식은?",choices:["CO2","H2O","O2","NaCl"],answer:1},
+  {q:"태양계에서 가장 큰 행성은?",choices:["토성","화성","목성","천왕성"],answer:2},
+  {q:"한국의 국화(나라꽃)는?",choices:["장미","벚꽃","무궁화","국화"],answer:2},
+  {q:"1년은 몇 주(週)인가?",choices:["48주","50주","52주","54주"],answer:2},
+  {q:"빛의 속도는 초당 약?",choices:["30만 km","3만 km","300만 km","3000 km"],answer:0},
+  {q:"한반도에서 가장 높은 산은?",choices:["지리산","한라산","백두산","설악산"],answer:2},
+  {q:"삼각형 내각의 합은?",choices:["90도","180도","270도","360도"],answer:1},
+  {q:"올림픽은 몇 년마다 열리나?",choices:["2년","3년","4년","5년"],answer:2},
+  {q:"사람 몸에서 가장 큰 장기는?",choices:["심장","간","폐","피부"],answer:3},
+  {q:"셰익스피어의 국적은?",choices:["프랑스","독일","영국","이탈리아"],answer:2},
+  {q:"피카소의 국적은?",choices:["프랑스","스페인","이탈리아","포르투갈"],answer:1},
+  {q:"지구에서 달까지 거리는?",choices:["38만 km","3.8만 km","380만 km","3800 km"],answer:0},
+];
+let questions=[],current=0,score=0,timer,timeLeft;
+const TOTAL=10,TIME=15;
+let best=Number(localStorage.getItem('best_quiz')||0);
+
+function shuffle(a){return[...a].sort(()=>Math.random()-.5);}
+function updateBestBadge(){document.getElementById('best-badge').textContent='최고 기록: '+best+'점';}
+updateBestBadge();
+
+function startGame(){
+  questions=shuffle(ALL_Q).slice(0,TOTAL);
+  current=0;score=0;
+  document.getElementById('start-screen').style.display='none';
+  document.getElementById('result').style.display='none';
+  document.getElementById('quiz-screen').style.display='block';
+  showQuestion();
+}
+function showQuestion(){
+  const q=questions[current];
+  document.getElementById('q-num').textContent=(current+1)+'/'+TOTAL;
+  document.getElementById('score-label').textContent='점수: '+score;
+  document.getElementById('question').textContent=q.q;
+  document.getElementById('feedback').textContent='';
+  document.getElementById('next-btn').style.display='none';
+  const box=document.getElementById('choices');box.innerHTML='';
+  q.choices.forEach((c,i)=>{
+    const btn=document.createElement('button');btn.className='choice';
+    btn.textContent=['①','②','③','④'][i]+'  '+c;
+    btn.onclick=()=>selectAnswer(i);box.appendChild(btn);
+  });
+  startTimer();
+}
+function startTimer(){
+  timeLeft=TIME;updateTimer();
+  timer=setInterval(()=>{timeLeft--;updateTimer();if(timeLeft<=0){clearInterval(timer);timeUp();}},1000);
+}
+function updateTimer(){
+  document.getElementById('timer-label').textContent='⏱ '+timeLeft;
+  const bar=document.getElementById('timer-bar');
+  bar.style.width=(timeLeft/TIME*100)+'%';
+  bar.style.background=timeLeft<=5?'linear-gradient(90deg,#e74c3c,#ff6b6b)':'linear-gradient(90deg,#f7971e,#ffd200)';
+}
+function selectAnswer(idx){
+  clearInterval(timer);
+  const q=questions[current];
+  document.querySelectorAll('.choice').forEach(b=>b.disabled=true);
+  document.querySelectorAll('.choice')[q.answer].classList.add('correct');
+  const fb=document.getElementById('feedback');
+  if(idx===q.answer){
+    const pts=Math.max(10,timeLeft*7);score+=pts;
+    fb.textContent='✅ 정답! +'+pts+'점';fb.style.color='#2ecc71';
+    beep(880,.1);setTimeout(()=>beep(1100,.1),.1);
+  } else {
+    document.querySelectorAll('.choice')[idx].classList.add('wrong');
+    fb.textContent='❌ 오답!';fb.style.color='#e74c3c';
+    beep(200,.3,'sawtooth');
+  }
+  document.getElementById('score-label').textContent='점수: '+score;
+  document.getElementById('next-btn').style.display='inline-block';
+}
+function timeUp(){
+  const q=questions[current];
+  document.querySelectorAll('.choice').forEach(b=>b.disabled=true);
+  document.querySelectorAll('.choice')[q.answer].classList.add('correct');
+  document.getElementById('feedback').textContent='⏰ 시간 초과!';
+  document.getElementById('feedback').style.color='#f39c12';
+  document.getElementById('next-btn').style.display='inline-block';
+  beep(300,.4,'sawtooth');
+}
+function nextQuestion(){current++;if(current>=TOTAL)showResult();else showQuestion();}
+function showResult(){
+  document.getElementById('quiz-screen').style.display='none';
+  document.getElementById('result').style.display='block';
+  if(score>best){best=score;localStorage.setItem('best_quiz',best);updateBestBadge();}
+  const pct=Math.round(score/(TOTAL*TIME*7)*100);
+  let emoji='😢',msg='다시 도전해보세요!';
+  if(pct>=80){emoji='🏆';msg='대단해요! 퀴즈 천재!';}
+  else if(pct>=60){emoji='😊';msg='잘했어요! 조금만 더!';}
+  else if(pct>=40){emoji='🙂';msg='나쁘지 않아요!';}
+  document.getElementById('r-emoji').textContent=emoji;
+  document.getElementById('r-score').textContent=score+'점';
+  document.getElementById('r-msg').textContent=msg+(score>=best?' 🎉 최고 기록!':'');
+}
+</script>
+</body>
+</html>
