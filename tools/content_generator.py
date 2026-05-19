@@ -164,12 +164,59 @@ def generate_daily_messages():
 
     client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-    # 1번 메시지: 날씨만
-    msg_weather = (
-        f"🌤️ {date_str} 날씨 / 해양 정보\n"
-        f"━━━━━━━━━━━━━━━\n"
-        f"{weather_block}"
-    )
+    # 날씨 데이터 수집 (순천, 광양, 여수)
+    def city_weather(city_en):
+        d = _fetch_wttr(city_en)
+        if not d:
+            return None
+        cur = d["current_condition"][0]
+        temp = cur["temp_C"]
+        precip = float(cur.get("precipMM", 0))
+        rain = "비 있음 🌧️" if precip > 0 else "맑음 ☀️"
+        max_t = d["weather"][0]["maxtempC"]
+        min_t = d["weather"][0]["mintempC"]
+        return {"temp": temp, "rain": rain, "max": max_t, "min": min_t}
+
+    sc = city_weather("Suncheon")
+    gw = city_weather("Gwangyang")
+    ys = city_weather("Yeosu")
+
+    weather_raw = (
+        f"순천: 현재 {sc['temp']}°C (최고 {sc['max']}°C / 최저 {sc['min']}°C), {sc['rain']}\n"
+        f"광양: 현재 {gw['temp']}°C (최고 {gw['max']}°C / 최저 {gw['min']}°C), {gw['rain']}\n"
+        f"여수: 현재 {ys['temp']}°C (최고 {ys['max']}°C / 최저 {ys['min']}°C), {ys['rain']}"
+    ) if sc and gw and ys else "날씨 정보를 가져올 수 없습니다."
+
+    weather_prompt = f"""오늘은 {date_str}이야.
+
+날씨 데이터:
+{weather_raw}
+
+아이 둘(정바로 {ages['baro_months']}개월, 왕눈이 임신 {ages['preg_weeks']}주)은 순천에만 있어.
+와이프는 임신 중이야.
+
+아래 형식으로 짧고 실용적인 날씨 메시지 써줘:
+
+🌤️ {date_str} 날씨
+━━━━━━━━━━━━━━━
+🏙️ 순천 | {sc['temp'] if sc else '?'}°C ({sc['min'] if sc else '?'}~{sc['max'] if sc else '?'}°C) | {sc['rain'] if sc else '?'}
+🏭 광양 | {gw['temp'] if gw else '?'}°C ({gw['min'] if gw else '?'}~{gw['max'] if gw else '?'}°C) | {gw['rain'] if gw else '?'}
+🌊 여수 | {ys['temp'] if ys else '?'}°C ({ys['min'] if ys else '?'}~{ys['max'] if ys else '?'}°C) | {ys['rain'] if ys else '?'}
+
+👶 정바로 오늘 날씨 대응
+• [순천 날씨 기준으로 {ages['baro_months']}개월 아이 옷차림, 외출 시 주의사항 — 2줄]
+
+🤰 와이프 오늘 준비사항
+• [임신 {ages['preg_weeks']}주 임산부 기준 날씨 대응, 준비물 — 2줄]
+━━━━━━━━━━━━━━━
+
+주의사항: 이모지 유지. 본문만 출력."""
+
+    msg_weather = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=600,
+        messages=[{"role": "user", "content": weather_prompt}],
+    ).content[0].text
 
     # 2번 메시지: 정바로
     prompt_baro = f"""오늘은 {date_str}이야.
@@ -232,4 +279,53 @@ def generate_daily_messages():
         messages=[{"role": "user", "content": prompt_wangnuni}],
     ).content[0].text
 
-    return msg_weather, msg_baro, msg_wangnuni
+    # 4번 메시지: 배 둘러보기
+    gw_info = _get_marine_info("Gwangyang")
+    ys_info = _get_marine_info("Yeosu")
+    gw_tide = _get_tide_info("광양")
+    ys_tide = _get_tide_info("여수")
+
+    marine_raw = ""
+    if gw_info:
+        marine_raw += f"광양: 비={gw_info['rain']}, 바람={gw_info['wind_ms']}m/s, 파도={gw_info['wave']}"
+        if gw_tide:
+            marine_raw += f", 고조={gw_tide['고조']}, 저조={gw_tide['저조']}"
+        marine_raw += "\n"
+    if ys_info:
+        marine_raw += f"여수: 비={ys_info['rain']}, 바람={ys_info['wind_ms']}m/s, 파도={ys_info['wave']}"
+        if ys_tide:
+            marine_raw += f", 고조={ys_tide['고조']}, 저조={ys_tide['저조']}"
+
+    prompt_boat = f"""오늘은 {date_str}이야.
+
+오늘 해양 날씨:
+{marine_raw if marine_raw else '해양 정보 없음'}
+
+배를 가지고 있고 오늘 아침 배를 둘러봐야 해.
+
+아래 형식으로 실용적인 '배 둘러보기' 체크리스트 메시지를 써줘:
+
+⛵ {date_str} 배 둘러보기
+━━━━━━━━━━━━━━━
+🌊 오늘 해상 상황
+• [오늘 날씨/바람/파도 기준으로 출항 가능 여부 또는 주의사항 — 2줄]
+
+🔍 오늘 점검 항목
+• [오늘 날씨/상황에 맞는 배 점검 항목 4~5가지 — 각 한 줄씩]
+
+⚠️ 오늘 특별 주의사항
+• [날씨나 계절에 맞는 주의사항 1~2가지]
+
+💡 오늘의 한마디
+• [배 관리나 안전에 대한 짧은 팁 한 줄]
+━━━━━━━━━━━━━━━
+
+주의사항: 이모지 유지. 본문만 출력."""
+
+    msg_boat = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=800,
+        messages=[{"role": "user", "content": prompt_boat}],
+    ).content[0].text
+
+    return msg_weather, msg_baro, msg_wangnuni, msg_boat
