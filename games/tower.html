@@ -263,8 +263,7 @@ function buildSpawnQueue(waveIdx){
   const q=[];
   WAVES[waveIdx].forEach(g=>{
     for(let i=0;i<g.n;i++){
-      const prev=q.length>0?q[q.length-1].delay:0;
-      q.push({type:g.t,delay:g.iv*(i+1)+prev});
+      q.push({type:g.t,delay:g.iv*(i+1)});  // 각 그룹 독립 인터벌
     }
   });
   q.sort((a,b)=>a.delay-b.delay);return q;
@@ -385,21 +384,40 @@ function drawTowers(){
   }
   if(selTower){const c=TD[selTower.type].color;cx.fillStyle=c+'15';cx.strokeStyle=c+'88';cx.lineWidth=2;cx.beginPath();cx.arc(selTower.px,selTower.py,selTower.rangePx,0,Math.PI*2);cx.fill();cx.stroke();cx.strokeStyle=c;cx.lineWidth=2.5;cx.strokeRect(selTower.col*CS+2,selTower.row*CS+2,CS-4,CS-4);}
   towers.forEach(t=>{
-    const lc=TD[t.type].color;cx.fillStyle='#1e2432';cx.fillRect(t.col*CS+2,t.row*CS+2,CS-4,CS-4);
-    const grd=cx.createLinearGradient(t.col*CS,t.row*CS,t.col*CS+CS,t.row*CS+CS);grd.addColorStop(0,lc+'30');grd.addColorStop(1,'transparent');cx.fillStyle=grd;cx.fillRect(t.col*CS+2,t.row*CS+2,CS-4,CS-4);
-    cx.strokeStyle=lc+(selTower===t?'ff':'44');cx.lineWidth=selTower===t?2.5:1;cx.strokeRect(t.col*CS+2,t.row*CS+2,CS-4,CS-4);
-    cx.save();cx.translate(t.px,t.py);if(t.type===0||t.type===4)cx.rotate(t.angle);
-    if(t.fireFlash>3){cx.shadowBlur=12;cx.shadowColor=lc;}
-    cx.font='1.4rem sans-serif';cx.textAlign='center';cx.textBaseline='middle';cx.fillText(TD[t.type].icon,0,2);cx.shadowBlur=0;cx.restore();
-    for(let i=0;i<3;i++){cx.fillStyle=i<=t.lv?lc:'#2a3a4a';cx.beginPath();cx.arc(t.col*CS+9+i*8,t.row*CS+5,2.5,0,Math.PI*2);cx.fill();}
+    const lc=TD[t.type].color;
+    const x=t.col*CS,y=t.row*CS;
+    // 배경
+    cx.fillStyle='#1e2432';cx.fillRect(x+2,y+2,CS-4,CS-4);
+    // 컬러 채우기
+    cx.fillStyle=lc+'40';cx.fillRect(x+2,y+2,CS-4,CS-4);
+    // 테두리
+    cx.strokeStyle=selTower===t?lc:'#'+lc.slice(1)+'88';
+    cx.lineWidth=selTower===t?2.5:1.5;cx.strokeRect(x+2,y+2,CS-4,CS-4);
+    // 발광 표시
+    if(t.fireFlash>3){cx.fillStyle=lc+'66';cx.fillRect(x+2,y+2,CS-4,CS-4);}
+    // 이모지 아이콘
+    cx.save();cx.translate(t.px,t.py);
+    if(t.type===0||t.type===4)cx.rotate(t.angle);
+    cx.font='18px sans-serif';cx.textAlign='center';cx.textBaseline='middle';
+    cx.fillText(TD[t.type].icon,0,2);
+    cx.restore();
+    // 타입 색 원 (이모지가 안 보일 때 대비)
+    cx.fillStyle=lc;cx.beginPath();cx.arc(x+CS-8,y+CS-8,5,0,Math.PI*2);cx.fill();
+    // 레벨 점
+    for(let i=0;i<3;i++){cx.fillStyle=i<=t.lv?lc:'#2a3a4a';cx.beginPath();cx.arc(x+9+i*8,y+5,2.5,0,Math.PI*2);cx.fill();}
   });
 }
 function drawEnemies(){
   enemies.forEach(e=>{
     if(e.dead)return;cx.globalAlpha=e.stealth?.48:1;
-    if(e.freezeT>0){cx.fillStyle='rgba(100,200,255,.28)';cx.beginPath();cx.arc(e.x,e.y,22,0,Math.PI*2);cx.fill();}
-    cx.fillStyle='rgba(0,0,0,.25)';cx.beginPath();cx.ellipse(e.x,e.y+2,13,5,0,0,Math.PI*2);cx.fill();
-    const sz=e.isBoss?2.1:1.4;cx.font=sz+'rem sans-serif';cx.textAlign='center';cx.textBaseline='middle';cx.fillText(e.icon,e.x,e.y+4);cx.globalAlpha=1;
+    // 몸체 원 (이모지 대비 확실한 표시)
+    const r=e.isBoss?18:12;
+    const ECOL={normal:'#9b59b6',fast:'#e74c3c',armored:'#7f8c8d',flying:'#f39c12',stealth:'#2c3e50',zombie:'#27ae60',regen:'#1abc9c',boss:'#c0392b',cyborg:'#95a5a6',ghost:'#bdc3c7',splitter:'#e67e22',dragon:'#8e44ad'};
+    cx.fillStyle=ECOL[e.type]||'#9b59b6';
+    cx.beginPath();cx.arc(e.x,e.y,r,0,Math.PI*2);cx.fill();
+    if(e.freezeT>0){cx.fillStyle='rgba(100,200,255,.5)';cx.beginPath();cx.arc(e.x,e.y,r+4,0,Math.PI*2);cx.fill();}
+    // 이모지
+    const sz=e.isBoss?22:16;cx.font=sz+'px sans-serif';cx.textAlign='center';cx.textBaseline='middle';cx.fillText(e.icon,e.x,e.y+2);cx.globalAlpha=1;
     if(!e.isBoss){const bw=28,bh=4,bx=e.x-bw/2,by=e.y-21;cx.fillStyle='#222';cx.fillRect(bx,by,bw,bh);const p=e.hp/e.maxHp;cx.fillStyle=p>.5?'#2ecc71':p>.25?'#f39c12':'#e74c3c';cx.fillRect(bx,by,bw*p,bh);}
     else{const bw=50,bh=6,bx=e.x-bw/2,by=e.y-30;cx.fillStyle='#111';cx.fillRect(bx-1,by-1,bw+2,bh+2);cx.fillStyle='#e74c3c';cx.fillRect(bx,by,bw*(e.hp/e.maxHp),bh);cx.strokeStyle='#f55';cx.lineWidth=1;cx.strokeRect(bx,by,bw,bh);cx.fillStyle='#ffd700';cx.font='bold 9px sans-serif';cx.textAlign='center';cx.fillText(e.type.toUpperCase()+' '+Math.ceil(e.hp),e.x,by-2);}
     if(e.burnT>0){cx.font='.6rem sans-serif';cx.textAlign='center';cx.fillText('🔥',e.x+13,e.y-13);}
