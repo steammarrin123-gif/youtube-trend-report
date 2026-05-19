@@ -464,7 +464,7 @@ function addParticle(x,y,color,count){
 }
 
 // ===== GAME INSTANCES =====
-let player,cpu;
+let player=new Ryu(),cpu=new ChunLi();
 
 function initFight(){
   player=new Ryu();cpu=new ChunLi();
@@ -618,7 +618,7 @@ function draw(){
     cx.font='1.2rem sans-serif';cx.textAlign='center';cx.fillText('💥',p.x,p.y+6);
   });
   // Fighters
-  player.draw(cx);cpu.draw(cx);
+  if(player)player.draw(cx);if(cpu)cpu.draw(cx);
   // Particles
   particles.forEach(p=>{cx.globalAlpha=p.life;cx.fillStyle=p.color;cx.beginPath();cx.arc(p.x,p.y,p.size,0,Math.PI*2);cx.fill();});
   cx.globalAlpha=1;
