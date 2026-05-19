@@ -562,76 +562,84 @@ function drawParticles(){
 // ===========================
 //  UI DRAWING
 // ===========================
+// UI Y 위치 (겹침 없도록 3줄로 분리)
+const UI_ROW1=GH+4;   // 통계 줄 (h=26)
+const UI_ROW2=GH+34;  // 웨이브/속도 버튼 줄 (h=28)
+const UI_SHOP=GH+66;  // 타워 상점 줄 (h=70)
+
 function drawUI(){
   cx.fillStyle='#0c1018';cx.fillRect(0,GH,GW,UH);
   cx.strokeStyle='#1e2a3a';cx.lineWidth=2;cx.beginPath();cx.moveTo(0,GH);cx.lineTo(GW,GH);cx.stroke();
+  // 구분선
+  cx.strokeStyle='#1a2535';cx.lineWidth=1;
+  cx.beginPath();cx.moveTo(0,UI_ROW2-2);cx.lineTo(GW,UI_ROW2-2);cx.stroke();
+  cx.beginPath();cx.moveTo(0,UI_SHOP-2);cx.lineTo(GW,UI_SHOP-2);cx.stroke();
 
-  // Top stat bar
-  const statY=GH+8;
-  [[`❤️ ${lives}`,'#e74c3c'],[`💰 ${gold}`,'#ffd700'],[`🌊 ${wave}/20`,'#4af'],[`⭐ ${score}`,'#ccc'],[`🏆 ${best}`,'#ffd700']].forEach(([t,c],i)=>{
-    const x=i*145+8;cx.fillStyle='rgba(255,255,255,.06)';cx.fillRect(x,statY,138,22);
-    cx.fillStyle=c;cx.font='bold 12px sans-serif';cx.textAlign='left';cx.fillText(t,x+8,statY+15);
+  // ─── 줄1: 통계 ───
+  [[`❤️ ${lives}`,'#e74c3c'],[`💰 ${gold}`,'#ffd700'],[`🌊 ${wave}/20`,'#4af'],[`⭐ ${score}`,'#ccc'],[`🏆 ${best}`,'#ffd700'],[`챕터 ${chapterOf(wave||1)}`,[,'#aaa','#4af','#f39c12','#e74c3c'][chapterOf(wave||1)]]].forEach(([t,c],i)=>{
+    if(i>=5)return;
+    const x=i*148+4;cx.fillStyle='rgba(255,255,255,.06)';cx.fillRect(x,UI_ROW1,144,24);
+    cx.fillStyle=c||'#ccc';cx.font='bold 12px sans-serif';cx.textAlign='left';cx.fillText(t,x+7,UI_ROW1+16);
   });
+  const ch=chapterOf(wave||1),chC=['','#aaa','#4af','#f39c12','#e74c3c'];
+  cx.fillStyle=chC[ch];cx.font='bold 11px sans-serif';cx.textAlign='right';cx.fillText('챕터 '+ch,GW-6,UI_ROW1+16);
 
-  // Speed & wave buttons
-  const speeds=[1,2,3,4];
-  speeds.forEach((s,i)=>{
-    cx.fillStyle=speedMult===s?'rgba(255,215,0,.3)':'rgba(255,255,255,.08)';
-    cx.strokeStyle=speedMult===s?'#ffd700':'#333';cx.lineWidth=1;
-    cx.fillRect(728+i*18,statY,16,22);cx.strokeRect(728+i*18,statY,16,22);
-    cx.fillStyle=speedMult===s?'#ffd700':'#888';cx.font='bold 10px sans-serif';cx.textAlign='center';
-    cx.fillText(s+'x',736+i*18,statY+15);
+  // ─── 줄2: 속도 버튼 + 웨이브 버튼 ───
+  // 속도 버튼 (왼쪽)
+  [1,2,3,4].forEach((s,i)=>{
+    const bx=6+i*58;
+    cx.fillStyle=speedMult===s?'rgba(255,215,0,.35)':'rgba(255,255,255,.08)';
+    cx.strokeStyle=speedMult===s?'#ffd700':'#2a3a4a';cx.lineWidth=speedMult===s?2:1;
+    cx.fillRect(bx,UI_ROW2,54,26);cx.strokeRect(bx,UI_ROW2,54,26);
+    cx.fillStyle=speedMult===s?'#ffd700':'#888';cx.font='bold 12px sans-serif';cx.textAlign='center';
+    cx.fillText(s+'× 속도',bx+27,UI_ROW2+17);
   });
+  // 다음 웨이브 버튼 (중앙~오른쪽, 넓게)
+  const wbx=244,wbw=GW-wbx-6;
+  cx.fillStyle=wave>=20?'rgba(80,80,80,.5)':waveRunning?'rgba(200,130,0,.8)':'rgba(30,160,60,.8)';
+  cx.strokeStyle=wave>=20?'#555':waveRunning?'#ffd700':'#2ecc71';cx.lineWidth=2;
+  cx.fillRect(wbx,UI_ROW2,wbw,26);cx.strokeRect(wbx,UI_ROW2,wbw,26);
+  cx.fillStyle='#fff';cx.font='bold 13px sans-serif';cx.textAlign='center';
+  const wbLabel=wave>=20?'모든 웨이브 완료':waveRunning?'⚡ 다음 웨이브 미리 소환 (+보너스 💰)':'▶  다음 웨이브 시작  [스페이스]';
+  cx.fillText(wbLabel,wbx+wbw/2,UI_ROW2+17);
 
-  // Next/early wave button
-  const btnX=732,btnY=statY+26,btnW=62,btnH=22;
-  cx.fillStyle=waveRunning?'rgba(200,120,0,.7)':'rgba(50,180,50,.7)';
-  cx.fillRect(btnX,btnY,btnW,btnH);cx.strokeStyle=waveRunning?'#fa0':'#2ecc71';cx.lineWidth=1;cx.strokeRect(btnX,btnY,btnW,btnH);
-  cx.fillStyle='#fff';cx.font='bold 9px sans-serif';cx.textAlign='center';
-  cx.fillText(waveRunning?'⚡조기소환':'▶ 다음웨이브',btnX+btnW/2,btnY+15);
+  // ─── 줄3: 타워 상점 or 선택된 타워 정보 ───
+  if(selTower){drawTowerPanel(UI_SHOP);}else{drawShop(UI_SHOP);}
 
-  // Tower shop or selected info
-  const shopY=GH+34;
-  if(selTower){drawTowerPanel(shopY);}else{drawShop(shopY);}
-
-  // Info overlay
+  // 정보 오버레이
   if(infoTimer>0){
     const a=Math.min(1,infoTimer/15);cx.globalAlpha=a;
-    cx.fillStyle='rgba(0,0,0,.75)';cx.fillRect(GW/2-150,GH/2-22,300,40);
-    cx.fillStyle=infoColor;cx.font='bold 14px sans-serif';cx.textAlign='center';cx.fillText(infoMsg,GW/2,GH/2+4);
+    cx.fillStyle='rgba(0,0,0,.8)';cx.fillRect(GW/2-155,GH/2-24,310,44);
+    cx.fillStyle=infoColor;cx.font='bold 14px sans-serif';cx.textAlign='center';cx.fillText(infoMsg,GW/2,GH/2+5);
     cx.globalAlpha=1;
   }
-
-  // Chapter indicator
-  const ch=chapterOf(wave||1),chColors=['#aaa','#4af','#f39c12','#e74c3c'];
-  cx.fillStyle=chColors[ch-1];cx.font='bold 10px sans-serif';cx.textAlign='right';
-  cx.fillText('챕터 '+ch,GW-8,GH+22);
 }
 
 function drawShop(y){
-  const h=UH-y+GH-8;
+  const h=H-y-4; // 남은 공간 전부
   TD.forEach((t,i)=>{
     const x=i*100+2;const unlocked=wave>=t.unlock||i<3;
-    cx.fillStyle=selType===i&&!selTower?t.color+'28':'rgba(255,255,255,.05)';
+    cx.fillStyle=selType===i&&!selTower?t.color+'30':'rgba(255,255,255,.05)';
     cx.strokeStyle=selType===i&&!selTower?t.color:'#1e2a3a';cx.lineWidth=selType===i?2:1;
-    cx.fillRect(x,y,98,h-2);cx.strokeRect(x,y,98,h-2);
-    cx.font='1.7rem sans-serif';cx.textAlign='center';cx.fillText(t.icon,x+22,y+h/2-2);
+    cx.fillRect(x,y,98,h);cx.strokeRect(x,y,98,h);
+    cx.font='1.6rem sans-serif';cx.textAlign='center';cx.fillText(t.icon,x+20,y+h/2+2);
     cx.fillStyle=unlocked?t.color:'#555';cx.font='bold 11px sans-serif';cx.textAlign='left';
-    cx.fillText(t.name,x+40,y+14);
+    cx.fillText(t.name,x+38,y+14);
     if(unlocked){
-      cx.fillStyle=gold>=t.lv[0].cost?'#ffd700':'#e74c3c';cx.font='11px sans-serif';cx.fillText('💰'+t.lv[0].cost,x+40,y+28);
-      cx.fillStyle='#889';cx.font='9px sans-serif';
-      cx.fillText(t.lv[0].desc.substring(0,10),x+40,y+42);
+      cx.fillStyle=gold>=t.lv[0].cost?'#ffd700':'#e74c3c';cx.font='11px sans-serif';cx.fillText('💰'+t.lv[0].cost,x+38,y+28);
+      cx.fillStyle='#889';cx.font='9px sans-serif';cx.fillText(t.lv[0].desc.substring(0,12),x+38,y+42);
+      if(t.unlock>1){cx.fillStyle='#2ecc7188';cx.font='8px sans-serif';cx.fillText('W'+t.unlock+'~해금',x+38,y+54);}
     } else {
-      cx.fillStyle='#555';cx.font='bold 10px sans-serif';cx.fillText('🔒 W'+t.unlock,x+40,y+32);
+      cx.fillStyle='#e74c3c';cx.font='bold 10px sans-serif';cx.fillText('🔒 W'+t.unlock,x+38,y+32);
     }
-    if(!unlocked||gold<t.lv[0].cost){cx.fillStyle='rgba(0,0,0,.45)';cx.fillRect(x,y,98,h-2);}
+    if(!unlocked){cx.fillStyle='rgba(0,0,0,.5)';cx.fillRect(x,y,98,h);}
+    else if(gold<t.lv[0].cost){cx.fillStyle='rgba(0,0,0,.3)';cx.fillRect(x,y,98,h);}
   });
 }
 
 function drawTowerPanel(y){
   if(!selTower)return;
-  const t=selTower,td=t.data,h=UH-y+GH-8;
+  const t=selTower,td=t.data,h=H-y-4;
   const lc=TD[t.type].color;
   cx.fillStyle='rgba(255,255,255,.05)';cx.strokeStyle=lc;cx.lineWidth=2;
   cx.fillRect(2,y,GW-4,h-2);cx.strokeRect(2,y,GW-4,h-2);
@@ -743,18 +751,23 @@ cv.addEventListener('click',e=>{
   const mx=(e.clientX-rect.left)*(W/rect.width),my=(e.clientY-rect.top)*(H/rect.height);
 
   if(my>=GH){
-    const statY=GH+8;
-    // Speed buttons
-    [1,2,3,4].forEach((s,i)=>{if(mx>=728+i*18&&mx<=744+i*18&&my>=statY&&my<=statY+22){speedMult=s;sfxUI();}});
-    // Wave button
-    if(mx>=732&&mx<=794&&my>=statY+26&&my<=statY+48){startWave(waveRunning);return;}
-    const shopY=GH+34,h=UH-shopY+GH-8;
-    if(selTower){
-      if(mx>=GW-240&&mx<=GW-132&&my>=shopY+6&&my<=shopY+h){selTower.upgrade();return;}
-      if(mx>=GW-126&&mx<=GW-8&&my>=shopY+6&&my<=shopY+h){towers=towers.filter(t=>t!==selTower);selTower.sell();selTower=null;return;}
-      selTower=null;return;
-    } else {
-      TD.forEach((t,i)=>{if(mx>=i*100+2&&mx<=i*100+100&&my>=shopY){const unlocked=wave>=t.unlock||i<3;if(unlocked&&gold>=t.lv[0].cost){selType=i;sfxUI();}}});
+    // 줄2: 속도 버튼 (y=UI_ROW2 ~ UI_ROW2+26)
+    if(my>=UI_ROW2&&my<=UI_ROW2+26){
+      [1,2,3,4].forEach((s,i)=>{if(mx>=6+i*58&&mx<=6+i*58+54){speedMult=s;sfxUI();}});
+      // 웨이브 버튼 (x=244 이후)
+      if(mx>=244){startWave(waveRunning);return;}
+      return;
+    }
+    // 줄3: 상점 or 타워패널 (y>=UI_SHOP)
+    if(my>=UI_SHOP){
+      const h=H-UI_SHOP-4;
+      if(selTower){
+        if(mx>=GW-240&&mx<=GW-132&&my>=UI_SHOP+6&&my<=UI_SHOP+h-6){selTower.upgrade();return;}
+        if(mx>=GW-126&&mx<=GW-8&&my>=UI_SHOP+6&&my<=UI_SHOP+h-6){towers=towers.filter(t=>t!==selTower);selTower.sell();selTower=null;return;}
+        selTower=null;return;
+      } else {
+        TD.forEach((t,i)=>{if(mx>=i*100+2&&mx<=i*100+100){const unlocked=wave>=t.unlock||i<3;if(unlocked&&gold>=t.lv[0].cost){selType=i;sfxUI();}}});
+      }
     }
     return;
   }
