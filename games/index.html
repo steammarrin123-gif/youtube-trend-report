@@ -5,130 +5,109 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>🎮 게임 허브</title>
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body {
-    font-family: 'Segoe UI', sans-serif;
-    background: #0d0d1a;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 30px 20px;
-    overflow: hidden;
-    position: relative;
-  }
-  .stars {
-    position: fixed; inset: 0; z-index: 0;
-    background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
-  }
-  .stars::before, .stars::after {
-    content: '';
-    position: absolute; inset: 0;
-    background-image:
-      radial-gradient(1px 1px at 20% 30%, #fff 0%, transparent 100%),
-      radial-gradient(1px 1px at 80% 10%, #fff 0%, transparent 100%),
-      radial-gradient(1px 1px at 50% 60%, #fff 0%, transparent 100%),
-      radial-gradient(1px 1px at 10% 80%, #fff 0%, transparent 100%),
-      radial-gradient(1px 1px at 90% 50%, #fff 0%, transparent 100%),
-      radial-gradient(1px 1px at 40% 90%, #fff 0%, transparent 100%),
-      radial-gradient(1px 1px at 70% 40%, #fff 0%, transparent 100%),
-      radial-gradient(1px 1px at 30% 70%, #fff 0%, transparent 100%);
-    opacity: 0.6;
-  }
-  .content { position: relative; z-index: 1; text-align: center; width: 100%; max-width: 700px; }
-  h1 {
-    color: #fff;
-    font-size: 2.5rem;
-    margin-bottom: 6px;
-    text-shadow: 0 0 30px rgba(100,150,255,0.8);
-    letter-spacing: 2px;
-  }
-  .subtitle { color: #667; font-size: 1rem; margin-bottom: 40px; }
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 18px;
-    margin-bottom: 30px;
-  }
-  .card {
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 20px;
-    padding: 28px 20px;
-    text-decoration: none;
-    color: #fff;
-    transition: transform 0.2s, background 0.2s, box-shadow 0.2s;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-  }
-  .card:hover {
-    transform: translateY(-6px);
-    background: rgba(255,255,255,0.09);
-    box-shadow: 0 12px 40px rgba(0,0,0,0.4);
-  }
-  .card .icon { font-size: 3rem; }
-  .card h2 { font-size: 1.2rem; }
-  .card p  { font-size: 0.85rem; color: #aaa; line-height: 1.5; }
-  .card .best {
-    font-size: 0.8rem;
-    color: #ffd700;
-    background: rgba(255,215,0,0.1);
-    border-radius: 20px;
-    padding: 3px 10px;
-    margin-top: 4px;
-  }
-  .card-clicker  { border-top: 3px solid #f4a261; }
-  .card-quiz     { border-top: 3px solid #7b61ff; }
-  .card-memory   { border-top: 3px solid #38ef7d; }
-  .card-snake    { border-top: 3px solid #e74c3c; }
-  .footer { color: #444; font-size: 0.8rem; }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Segoe UI',sans-serif;background:#0a0a14;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:24px 16px;color:#fff;}
+  h1{font-size:2.2rem;margin-bottom:4px;text-shadow:0 0 30px rgba(120,160,255,.9);letter-spacing:2px;}
+  .subtitle{color:#556;font-size:.9rem;margin-bottom:32px;}
+  .section-title{width:100%;max-width:720px;text-align:left;color:#667;font-size:.8rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;padding-left:4px;border-left:3px solid #334;padding-left:10px;}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;width:100%;max-width:720px;margin-bottom:28px;}
+  @media(min-width:600px){.grid{grid-template-columns:repeat(4,1fr);}}
+  .card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:20px 14px;text-decoration:none;color:#fff;transition:transform .2s,background .2s,box-shadow .2s;display:flex;flex-direction:column;align-items:center;gap:8px;position:relative;overflow:hidden;}
+  .card:hover{transform:translateY(-5px);background:rgba(255,255,255,.09);box-shadow:0 12px 36px rgba(0,0,0,.5);}
+  .card.locked{opacity:.45;cursor:default;pointer-events:none;}
+  .card.locked:hover{transform:none;}
+  .card .icon{font-size:2.4rem;}
+  .card h2{font-size:.95rem;font-weight:bold;text-align:center;}
+  .card p{font-size:.75rem;color:#889;text-align:center;line-height:1.4;}
+  .card .best{font-size:.72rem;color:#ffd700;background:rgba(255,215,0,.1);border-radius:20px;padding:2px 9px;}
+  .badge{position:absolute;top:8px;right:8px;font-size:.65rem;font-weight:bold;border-radius:10px;padding:2px 7px;}
+  .badge.new{background:#e74c3c;color:#fff;}
+  .badge.soon{background:#444;color:#aaa;}
+  .c1{border-top:3px solid #f4a261;}
+  .c2{border-top:3px solid #7b61ff;}
+  .c3{border-top:3px solid #38ef7d;}
+  .c4{border-top:3px solid #e74c3c;}
+  .c5{border-top:3px solid #4af;}
+  .c6{border-top:3px solid #f9ca24;}
+  .c7{border-top:3px solid #ff6b81;}
+  .c8{border-top:3px solid #a29bfe;}
+  footer{color:#334;font-size:.75rem;margin-top:8px;}
 </style>
 </head>
 <body>
-<div class="stars"></div>
-<div class="content">
-  <h1>🎮 게임 허브</h1>
-  <p class="subtitle">플레이할 게임을 선택하세요</p>
-  <div class="grid">
-    <a href="clicker.html" class="card card-clicker">
-      <div class="icon">🍪</div>
-      <h2>쿠키 클리커</h2>
-      <p>클릭해서 쿠키를 모으고<br>업그레이드를 구매하세요</p>
-      <div class="best" id="best-clicker">최고: 0 쿠키</div>
-    </a>
-    <a href="quiz.html" class="card card-quiz">
-      <div class="icon">🧠</div>
-      <h2>퀴즈 게임</h2>
-      <p>10문제 · 제한시간 15초<br>빨리 맞힐수록 점수 UP!</p>
-      <div class="best" id="best-quiz">최고: 0 점</div>
-    </a>
-    <a href="memory.html" class="card card-memory">
-      <div class="icon">🃏</div>
-      <h2>카드 뒤집기</h2>
-      <p>같은 카드 짝을 찾아요<br>적은 시도로 완성하세요</p>
-      <div class="best" id="best-memory">최고: 기록없음</div>
-    </a>
-    <a href="snake.html" class="card card-snake">
-      <div class="icon">🐍</div>
-      <h2>뱀 게임</h2>
-      <p>먹이를 먹으며 길어지는 뱀<br>최고기록에 도전하세요</p>
-      <div class="best" id="best-snake">최고: 0 점</div>
-    </a>
-  </div>
-  <p class="footer">각 게임에서 🎵 버튼으로 음악 켜기/끄기</p>
+<h1>🎮 게임 허브</h1>
+<p class="subtitle">플레이할 게임을 선택하세요</p>
+
+<p class="section-title">클래식 게임</p>
+<div class="grid">
+  <a href="clicker.html" class="card c1">
+    <div class="icon">🍪</div><h2>쿠키 클리커</h2>
+    <p>클릭해서 쿠키를 모으고 업그레이드 구매</p>
+    <div class="best" id="b-clicker">최고: —</div>
+  </a>
+  <a href="quiz.html" class="card c2">
+    <div class="icon">🧠</div><h2>퀴즈 게임</h2>
+    <p>10문제 · 15초 제한 빨리 맞힐수록 UP</p>
+    <div class="best" id="b-quiz">최고: —</div>
+  </a>
+  <a href="memory.html" class="card c3">
+    <div class="icon">🃏</div><h2>카드 뒤집기</h2>
+    <p>같은 카드 짝 찾기 3가지 난이도</p>
+    <div class="best" id="b-memory">최고: —</div>
+  </a>
+  <a href="snake.html" class="card c4">
+    <div class="icon">🐍</div><h2>뱀 게임</h2>
+    <p>먹이 먹으며 길어지는 뱀 최고기록 도전</p>
+    <div class="best" id="b-snake">최고: —</div>
+  </a>
 </div>
+
+<p class="section-title">액션 게임</p>
+<div class="grid">
+  <a href="shooter.html" class="card c5">
+    <span class="badge new">NEW</span>
+    <div class="icon">🛸</div><h2>우주 슈팅</h2>
+    <p>적 우주선 격파 파워업 · 폭발 이펙트</p>
+    <div class="best" id="b-shooter">최고: —</div>
+  </a>
+  <a href="tower.html" class="card c6">
+    <span class="badge new">NEW</span>
+    <div class="icon">🏰</div><h2>타워 디펜스</h2>
+    <p>몬스터를 막아라 전략 타워 배치</p>
+    <div class="best" id="b-tower">최고: —</div>
+  </a>
+  <a href="runner.html" class="card c8">
+    <span class="badge new">NEW</span>
+    <div class="icon">🏃</div><h2>무한 달리기</h2>
+    <p>장애물을 피해 달려라 무한 스크롤</p>
+    <div class="best" id="b-runner">최고: —</div>
+  </a>
+  <a href="rhythm.html" class="card c7">
+    <span class="badge new">NEW</span>
+    <div class="icon">🎵</div><h2>리듬 게임</h2>
+    <p>음악에 맞춰 타이밍을 맞춰라</p>
+    <div class="best" id="b-rhythm">최고: —</div>
+  </a>
+</div>
+
+<footer>🎮 게임을 플레이하면 최고 기록이 자동 저장됩니다</footer>
+
 <script>
-  const bs = localStorage.getItem('best_clicker');
-  const bq = localStorage.getItem('best_quiz');
-  const bm = localStorage.getItem('best_memory');
-  const bn = localStorage.getItem('best_snake');
-  if (bs) document.getElementById('best-clicker').textContent = '최고: ' + Number(bs).toLocaleString() + ' 쿠키';
-  if (bq) document.getElementById('best-quiz').textContent = '최고: ' + bq + ' 점';
-  if (bm) document.getElementById('best-memory').textContent = '최고: ' + bm;
-  if (bn) document.getElementById('best-snake').textContent = '최고: ' + bn + ' 점';
+  const map={
+    'b-clicker':['best_clicker','쿠키'],
+    'b-quiz':['best_quiz','점'],
+    'b-snake':['best_snake','점'],
+    'b-shooter':['best_shooter','점'],
+    'b-tower':['best_tower','점'],
+    'b-runner':['best_runner','점'],
+    'b-rhythm':['best_rhythm','점'],
+  };
+  Object.entries(map).forEach(([id,[key,unit]])=>{
+    const v=localStorage.getItem(key);
+    if(v)document.getElementById(id).textContent='최고: '+Number(v).toLocaleString()+unit;
+  });
+  const bm=localStorage.getItem('best_memory_4x4')||localStorage.getItem('best_memory_4x5')||localStorage.getItem('best_memory_6x5');
+  if(bm)document.getElementById('b-memory').textContent='최고: '+bm+'초';
 </script>
 </body>
 </html>
