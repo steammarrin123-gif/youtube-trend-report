@@ -71,45 +71,46 @@ canvas{display:block;max-width:100vw;cursor:pointer;border-radius:4px 4px 0 0;}
 <div id="toast"></div>
 
 <script>
-// ===== EDM BATTLE MUSIC =====
+// ===== 음악 시스템 (수노 MP3 4곡) =====
+// 전투의 서막 → 타이틀/로비
+// 경계 태세   → 초반 웨이브 1~9
+// 한계 돌파   → 후반 웨이브 10~19
+// 절멸의 위기 → 보스 등장 & 웨이브 20+
+const TRACKS={
+  title:new Audio('music/title.mp3'),
+  early:new Audio('music/early.mp3'),
+  late: new Audio('music/late.mp3'),
+  boss: new Audio('music/boss.mp3'),
+};
+Object.values(TRACKS).forEach(t=>{t.loop=true;t.volume=0.72;});
+let mOn=false,currentTrack=null,currentTrackName='';
+
+function playTrack(name){
+  if(!mOn)return;
+  if(currentTrackName===name)return;
+  if(currentTrack){currentTrack.pause();currentTrack.currentTime=0;}
+  currentTrackName=name;currentTrack=TRACKS[name];
+  currentTrack.play().catch(()=>{});
+}
+function updateMusicForState(){
+  if(!mOn)return;
+  const hasBoss=[...enemies,...(attackers||[])].some(e=>!e.dead&&(e.type==='boss'||e.type==='dragon'));
+  if(hasBoss||wave>=20){playTrack('boss');return;}
+  if(wave===0){playTrack('title');return;}
+  if(wave<=9){playTrack('early');return;}
+  playTrack('late');
+}
+function toggleMusic(){
+  const btn=document.getElementById('music-btn');
+  if(mOn){mOn=false;if(currentTrack)currentTrack.pause();currentTrackName='';btn.textContent='🎵 켜기';}
+  else{mOn=true;currentTrackName='';updateMusicForState();btn.textContent='🔇 끄기';}
+}
+
+// ===== 효과음 (Web Audio API) =====
 let AC=null;
 function gac(){if(!AC)AC=new(window.AudioContext||window.webkitAudioContext)();return AC;}
-const BPM=168,BEAT=60/BPM;
-const MN={R:0,A2:110,B2:123,C3:131,D3:147,E3:165,F3:175,G3:196,A3:220,B3:247,
-  C4:262,D4:294,E4:330,F4:349,G4:392,A4:440,B4:494,
-  C5:523,D5:587,E5:659,F5:698,G5:784,A5:880,B5:988,C6:1047,E6:1319};
-// EDM Lead
-const ML=[[MN.A5,.25],[MN.A5,.25],[MN.E5,.5],[MN.A5,.25],[MN.G5,.25],[MN.E5,.5],
-  [MN.D5,.25],[MN.E5,.25],[MN.F5,.5],[MN.E5,.25],[MN.D5,.25],[MN.C5,.5],
-  [MN.E5,.25],[MN.C5,.25],[MN.A4,.5],[MN.C5,.25],[MN.D5,.25],[MN.E5,.5],
-  [MN.F5,.5],[MN.E5,.5],[MN.D5,.5],[MN.C5,.5],
-  [MN.A5,.5],[MN.G5,.25],[MN.F5,.25],[MN.E5,.5],[MN.D5,.25],[MN.C5,.25],
-  [MN.B4,.5],[MN.A4,.5],[MN.G4,.25],[MN.A4,.25],[MN.B4,.5],
-  [MN.C5,.5],[MN.E5,.5],[MN.A5,.75],[MN.G5,.25],
-  [MN.F5,.5],[MN.E5,.5],[MN.D5,.5],[MN.E5,1]];
-// Fast arpeggio (EDM feel)
-const MA=[[MN.A4,.125],[MN.C5,.125],[MN.E5,.125],[MN.A5,.125],[MN.G5,.125],[MN.E5,.125],[MN.C5,.125],[MN.A4,.125],
-  [MN.F4,.125],[MN.A4,.125],[MN.C5,.125],[MN.F5,.125],[MN.E5,.125],[MN.C5,.125],[MN.A4,.125],[MN.F4,.125],
-  [MN.G4,.125],[MN.B4,.125],[MN.D5,.125],[MN.G5,.125],[MN.F5,.125],[MN.D5,.125],[MN.B4,.125],[MN.G4,.125],
-  [MN.E4,.125],[MN.A4,.125],[MN.C5,.125],[MN.E5,.125],[MN.A5,.125],[MN.E5,.125],[MN.C5,.125],[MN.A4,.125]];
-// Bass
-const MB=[[MN.A2,.5],[MN.R,.25],[MN.A2,.25],[MN.G2,.25],[MN.A2,.25],
-  [MN.F3,.5],[MN.R,.25],[MN.F3,.25],[MN.E3,.25],[MN.F3,.25],
-  [MN.C3,.5],[MN.R,.25],[MN.C3,.25],[MN.B2,.25],[MN.C3,.25],
-  [MN.G3,.5],[MN.R,.25],[MN.G3,.25],[MN.A3,.25],[MN.G3,.25]];
-let mOn=false,mT=null,mN2=[0,0,0],mI=[0,0,0];
 function asn(f,t,d,tp='square',v=.07){const c=gac();if(!f)return;const o=c.createOscillator(),g=c.createGain();o.type=tp;o.frequency.value=f;g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+d*.88);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d);}
 function adrm(t,type){const c=gac();const b=c.createBuffer(1,Math.floor(c.sampleRate*.1),c.sampleRate);const d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*(1-i/d.length);const s=c.createBufferSource(),g=c.createGain(),f=c.createBiquadFilter();s.buffer=b;f.type=type==='kick'?'lowpass':type==='snare'?'bandpass':'highpass';f.frequency.value=type==='kick'?160:type==='snare'?2500:9000;g.gain.setValueAtTime(type==='kick'?.45:type==='snare'?.22:.09,t);g.gain.exponentialRampToValueAtTime(.001,t+.07);s.connect(f);f.connect(g);g.connect(c.destination);s.start(t);}
-function schedMusic(){
-  if(!mOn)return;const c=gac();
-  while(mN2[0]<c.currentTime+.3){const[f,bs]=ML[mI[0]];asn(f,mN2[0],BEAT*bs*.88,'square',.08);mN2[0]+=BEAT*bs;mI[0]=(mI[0]+1)%ML.length;}
-  while(mN2[1]<c.currentTime+.3){const[f,bs]=MA[mI[1]];asn(f,mN2[1],BEAT*bs*.7,'triangle',.04);mN2[1]+=BEAT*bs;mI[1]=(mI[1]+1)%MA.length;}
-  while(mN2[2]<c.currentTime+.3){const[f,bs]=MB[mI[2]];asn(f,mN2[2],BEAT*bs*.88,'sawtooth',.07);mN2[2]+=BEAT*bs;mI[2]=(mI[2]+1)%MB.length;}
-  const now=c.currentTime,hb=BEAT*.5;
-  for(let i=0;i<8;i++){const t=Math.ceil(now/hb)*hb+i*hb;if(t>now+.05&&t<now+.3){if(i%4===0){adrm(t,'kick');adrm(t+BEAT*.25,'kick');}if(i%4===2)adrm(t,'snare');adrm(t,'hihat');}}
-  mT=setTimeout(schedMusic,100);
-}
-function toggleMusic(){const btn=document.getElementById('music-btn');if(mOn){mOn=false;clearTimeout(mT);btn.textContent='🎵 켜기';}else{mOn=true;const c=gac();c.resume();mN2=[c.currentTime+.05,c.currentTime+.05,c.currentTime+.05];mI=[0,0,0];schedMusic();btn.textContent='🔇 끄기';}}
 function sfxShoot(type){const c=gac();c.resume();const t=c.currentTime;const FX=[[660,.05,'square',.12],[880,.04,'square',.1,3],[100,.2,'sawtooth',.25],[1400,.08,'sine',.13],[400,.1,'sawtooth',.16],[250,.12,'sawtooth',.13],[100,.3,'sawtooth',.32],[200,.4,'sine',.19],[900,.04,'square',.1],[300,.08,'sawtooth',.14],[500,.06,'sine',.12],[660,.06,'triangle',.11]];const[f,d,tp,v,cn]=FX[type]||FX[0];if(type===1&&cn){for(let i=0;i<cn;i++)asn(f+i*80,t+i*.04,d,tp,v);}else{const o=c.createOscillator(),g=c.createGain();o.type=tp;o.frequency.value=f;if([4,5,7].includes(type)){const ff=[500,300,200][([4,5,7].indexOf(type))];o.frequency.setValueAtTime(ff,t);o.frequency.exponentialRampToValueAtTime(f*.2,t+d);}g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d);}}
 function sfxKill(big){const c=gac();c.resume();const t=c.currentTime;big?[180,140,100,60].forEach((f,i)=>asn(f,t+i*.08,.12,'sawtooth',.24)):asn(550,t,.06,'square',.14);}
 function sfxUI(){const c=gac();c.resume();asn(660,c.currentTime,.06,'square',.1);}
@@ -287,11 +288,13 @@ function startWave(early=false){
   if(!waveRunning&&!early){
     wave++;spawnQueues.push({q:buildSpawnQueue(wave-1),tick:0,waveN:wave});waveRunning=true;
     toast(`🌊 웨이브 ${wave} — 챕터 ${chapterOf(wave)}`,'#4af');sfxUI();
+    setTimeout(()=>updateMusicForState(),100);
     TD.filter(t=>t.unlock===wave).forEach(t=>setTimeout(()=>{toast(`🔓 해금: ${t.icon}${t.name}`,'#2ecc71');sfxUnlock();},600));
     [{w:7,g:70},{w:13,g:130},{w:19,g:190},{w:25,g:250}].filter(c=>c.w===wave).forEach(c=>setTimeout(()=>{gold+=c.g;toast(`🎖 챕터보너스 +${c.g}💰`);updateHUD();},1100));
   } else if(waveRunning&&wave<30){
     wave++;spawnQueues.push({q:buildSpawnQueue(wave-1),tick:0,waveN:wave});
     const b=20+wave*2;gold+=b;toast(`⚡ W${wave} 조기소환 +${b}💰`);sfxUI();
+    setTimeout(()=>updateMusicForState(),100);
     TD.filter(t=>t.unlock===wave).forEach(t=>setTimeout(()=>{toast(`🔓 해금: ${t.icon}${t.name}`,'#2ecc71');sfxUnlock();},400));
   }
   updateHUD();
@@ -631,6 +634,8 @@ function update(){
   for(let i=attackers.length-1;i>=0;i--){if(attackers[i].dead)attackers.splice(i,1);}
   // redFlash
   if(redFlash>0)redFlash--;
+  // 보스 등장/사망 감지 → 음악 전환 (60프레임마다 체크)
+  if(frameN%60===0)updateMusicForState();
   updateTowers();
   for(let i=bullets.length-1;i>=0;i--){bullets[i].update();if(bullets[i].dead)bullets.splice(i,1);}
   updateWaveEffects();
@@ -673,6 +678,11 @@ cv.addEventListener('touchstart',e=>{e.preventDefault();const t=e.touches[0];cv.
 document.addEventListener('keydown',e=>{if(e.code==='Space'){startWave(waveRunning);e.preventDefault();}if(e.code==='KeyQ')setSpeed(speedMult%4+1);if(e.code==='Escape')setSelTower(null);});
 
 updateHUD();renderShop();gameLoop();
+// 타이틀 화면 음악 자동재생 (사용자 클릭 후 시작)
+document.addEventListener('click',function startTitleMusic(){
+  if(!mOn){mOn=true;currentTrackName='';updateMusicForState();document.getElementById('music-btn').textContent='🔇 끄기';}
+  document.removeEventListener('click',startTitleMusic);
+},{once:true});
 </script>
 </body>
 </html>
