@@ -156,15 +156,8 @@ def generate_daily_messages():
     gwangyang_section = _format_marine_section("광양", "Gwangyang")
     yeosu_section = _format_marine_section("여수", "Yeosu")
 
-    weather_block = (
-        f"🌤️ 순천\n{weather_suncheon}\n\n"
-        f"{gwangyang_section}\n\n"
-        f"{yeosu_section}"
-    )
-
     client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-    # 날씨 데이터 수집 (순천, 광양, 여수)
     def city_weather(city_en):
         d = _fetch_wttr(city_en)
         if not d:
@@ -187,38 +180,6 @@ def generate_daily_messages():
         f"여수: 현재 {ys['temp']}°C (최고 {ys['max']}°C / 최저 {ys['min']}°C), {ys['rain']}"
     ) if sc and gw and ys else "날씨 정보를 가져올 수 없습니다."
 
-    weather_prompt = f"""오늘은 {date_str}이야.
-
-날씨 데이터:
-{weather_raw}
-
-아이 둘(정바로 {ages['baro_months']}개월, 왕눈이 임신 {ages['preg_weeks']}주)은 순천에만 있어.
-와이프는 임신 중이야.
-
-아래 형식으로 짧고 실용적인 날씨 메시지 써줘:
-
-🌤️ {date_str} 날씨
-━━━━━━━━━━━━━━━
-🏙️ 순천 | {sc['temp'] if sc else '?'}°C ({sc['min'] if sc else '?'}~{sc['max'] if sc else '?'}°C) | {sc['rain'] if sc else '?'}
-🏭 광양 | {gw['temp'] if gw else '?'}°C ({gw['min'] if gw else '?'}~{gw['max'] if gw else '?'}°C) | {gw['rain'] if gw else '?'}
-🌊 여수 | {ys['temp'] if ys else '?'}°C ({ys['min'] if ys else '?'}~{ys['max'] if ys else '?'}°C) | {ys['rain'] if ys else '?'}
-
-👶 정바로 오늘 날씨 대응
-• [순천 날씨 기준으로 {ages['baro_months']}개월 아이 옷차림, 외출 시 주의사항 — 2줄]
-
-🤰 와이프 오늘 준비사항
-• [임신 {ages['preg_weeks']}주 임산부 기준 날씨 대응, 준비물 — 2줄]
-━━━━━━━━━━━━━━━
-
-주의사항: 이모지 유지. 본문만 출력."""
-
-    msg_weather = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=600,
-        messages=[{"role": "user", "content": weather_prompt}],
-    ).content[0].text
-
-    # 2번 메시지: 정바로
     prompt_baro = f"""오늘은 {date_str}이야.
 첫째: 정바로 (남아, 생후 {ages['baro_months']}개월 {ages['baro_days']}일)
 
@@ -241,91 +202,64 @@ def generate_daily_messages():
 
 주의사항: 의학적으로 정확한 정보만. 이모지 유지. 본문만 출력."""
 
-    # 3번 메시지: 왕눈이
-    prompt_wangnuni = f"""오늘은 {date_str}이야.
-둘째: 왕눈이 (임신 {ages['preg_weeks']}주 {ages['preg_day']}일, 출산예정일 2027년 1월 10일, D-{ages['days_left']}일)
+    prompt_spouse = f"""오늘은 {date_str}이야.
 
-아래 형식을 정확히 따라줘. 각 항목 3~4줄로 자세하게 써줘:
+오늘 아내 정보:
+- 이름: 이예원
+- 생년월일: 1993년 01월 31일
+- 직업: 첼로 선생님
+- 현재 활동: 개인 레슨, NC백화점 레슨
+- 과거 활동: 중학교, 초등학교 레슨
+- 공연 활동: 순천시 주관 공연 참석 및 연주
+- 가족 상황: 어제 6주 된 아이를 유산함
 
-🤰 왕눈이 ({ages['preg_weeks']}주 {ages['preg_day']}일, D-{ages['days_left']})
+오늘의 날씨:
+{weather_raw}
+
+아래 항목을 정확히 지켜서 작성해줘. 이예원에게 보낼 수 있게, 따뜻하고 실제적인 문장으로 구성해줘.
+
+🎻 이예원님의 오늘 메시지
 ━━━━━━━━━━━━━━━
-👶 이번 주 태아 발달
-• [현재 주차 태아의 크기/발달 상황 — 3~4줄, 구체적으로]
+🌤️ 오늘 날씨 한 줄 요약
+• [순천 기준으로 간단히 정리]
 
-💊 엄마 몸 변화
-• [이 주차 흔한 증상과 대처법 — 3줄]
+💪 오늘 건강 관리
+• [1993년 1월 31일생, 30대 후반 여성 기준 신체 관리법 — 식단/운동/수분 섭취 중심으로 3~4줄]
 
-🥗 이번 주 추천 음식
-• [좋은 음식 2~3가지와 이유]
+🧘 정신과 마음 챙김
+• [최근 큰 상실을 겪은 상황에 맞춘 심리적 안정, 호흡/쉬기/지원 네트워크 팁 — 3~4줄]
 
-👨 아빠가 오늘 할 일
-• [실천할 수 있는 행동 2~3가지]
+📚 오늘 추천 책 또는 마음챙김 방법
+• [부드럽게 힘이 되는 책 내용이나 자기 돌봄 방법 — 2~3가지]
 
-💬 오늘의 태담
-• [왕눈이에게 보내는 따뜻한 태담 한 문장]
-━━━━━━━━━━━━━━━
+🎼 첼로 선생님 일상 팁
+• [현재 활동(개인 레슨/NC백화점)과 공연 준비를 위한 체력·마음 관리 팁 — 2~3줄]
 
-주의사항: 의학적으로 정확한 정보만. 이모지 유지. 본문만 출력."""
-
-    msg_baro = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=1500,
-        messages=[{"role": "user", "content": prompt_baro}],
-    ).content[0].text
-
-    msg_wangnuni = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=1500,
-        messages=[{"role": "user", "content": prompt_wangnuni}],
-    ).content[0].text
-
-    # 4번 메시지: 배 둘러보기
-    gw_info = _get_marine_info("Gwangyang")
-    ys_info = _get_marine_info("Yeosu")
-    gw_tide = _get_tide_info("광양")
-    ys_tide = _get_tide_info("여수")
-
-    marine_raw = ""
-    if gw_info:
-        marine_raw += f"광양: 비={gw_info['rain']}, 바람={gw_info['wind_ms']}m/s, 파도={gw_info['wave']}"
-        if gw_tide:
-            marine_raw += f", 고조={gw_tide['고조']}, 저조={gw_tide['저조']}"
-        marine_raw += "\n"
-    if ys_info:
-        marine_raw += f"여수: 비={ys_info['rain']}, 바람={ys_info['wind_ms']}m/s, 파도={ys_info['wave']}"
-        if ys_tide:
-            marine_raw += f", 고조={ys_tide['고조']}, 저조={ys_tide['저조']}"
-
-    prompt_boat = f"""오늘은 {date_str}이야.
-
-오늘 해양 날씨:
-{marine_raw if marine_raw else '해양 정보 없음'}
-
-배를 가지고 있고 오늘 아침 배를 둘러봐야 해.
-
-아래 형식으로 실용적인 '배 둘러보기' 체크리스트 메시지를 써줘:
-
-⛵ {date_str} 배 둘러보기
-━━━━━━━━━━━━━━━
-🌊 오늘 해상 상황
-• [오늘 날씨/바람/파도 기준으로 출항 가능 여부 또는 주의사항 — 2줄]
-
-🔍 오늘 점검 항목
-• [오늘 날씨/상황에 맞는 배 점검 항목 4~5가지 — 각 한 줄씩]
-
-⚠️ 오늘 특별 주의사항
-• [날씨나 계절에 맞는 주의사항 1~2가지]
-
-💡 오늘의 한마디
-• [배 관리나 안전에 대한 짧은 팁 한 줄]
+💬 오늘 한마디
+• [따뜻한 격려와 함께 오늘을 잘 견디자는 응원 한 문장]
 ━━━━━━━━━━━━━━━
 
-주의사항: 이모지 유지. 본문만 출력."""
+주의사항: 감정에 공감하면서도 과도한 진단 없이 쓰고, 이모지 유지. 본문만 출력."""
 
-    msg_boat = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=800,
-        messages=[{"role": "user", "content": prompt_boat}],
-    ).content[0].text
+    def claude_call(prompt, max_tokens=1200):
+        import time
+        for attempt in range(5):
+            try:
+                return client.messages.create(
+                    model="claude-haiku-4-5-20251001",
+                    max_tokens=max_tokens,
+                    messages=[{"role": "user", "content": prompt}],
+                ).content[0].text
+            except Exception as e:
+                if "529" in str(e) or "overloaded" in str(e).lower():
+                    wait = 15 * (attempt + 1)
+                    print(f"  API 과부하, {wait}초 대기 후 재시도 ({attempt+1}/5)...")
+                    time.sleep(wait)
+                else:
+                    raise
+        raise RuntimeError("Claude API 응답 실패 (5회 재시도 초과)")
 
-    return msg_weather, msg_baro, msg_wangnuni, msg_boat
+    msg_baro = claude_call(prompt_baro)
+    msg_spouse = claude_call(prompt_spouse)
+
+    return msg_baro, msg_spouse
